@@ -55,7 +55,7 @@ Existing tools either:
 - **CNET survey:** $252/yr waste, +24% YoY. Subscription spending at all-time high. FTC click-to-cancel rule blocked by appeals court, making cancellation harder.
 - **Plaid privacy backlash:** Plaid faces ongoing scrutiny over screen-scraping (Business Insider, 2025). 40% of consumers won't share financial data. Reddit threads consistently ask for alternatives "without bank login."
 - **YouTube search volume:** Videos titled "Rocket Money alternative without bank access" get 10K–100K+ views.
-- **Reddit signal density:** r/personalfinance (20M+), r/Frugal (4M+), r/ynab (200K+), r/budgeting (100K+) — daily discussion about forgotten subscriptions.
+- **High pain awareness:** Personal finance communities, frugal living forums, and comment sections on subscription-related content — daily discussion about forgotten subscriptions. Twitter/X and Facebook Groups show the same signal density.
 
 ### What people do instead (substitutes)
 
@@ -152,7 +152,7 @@ The **email-only × Chrome extension intersection is unowned.** Track-Subs is th
 | Context | Line |
 |---|---|
 | Landing page hero | **Find every subscription you're paying for. Without connecting your bank.** |
-| Reddit / DM opener | *"The average American wastes $252/year on unused subs. I'm building a tool that finds them from your Gmail — no bank login needed."* |
+| Social / DM opener | *"The average American wastes $252/year on unused subs. I'm building a tool that finds them from your Gmail — no bank login needed."* |
 | Privacy angle | *"No Plaid. No bank credentials. Just read-only Gmail access."* |
 | Global angle | *"Works everywhere your email does — not US-only like Rocket Money."* |
 
@@ -211,101 +211,123 @@ Trackd (proposed) ───── $3.99/mo  ← we are here
 
 ## 6. Customer Channels
 
-### Reddit (primary)
-
-| Subreddit | Members | Why it works |
-|---|---|---|
-| r/personalfinance | 20M+ | Daily posts about forgotten subscriptions |
-| r/Frugal | 4M+ | Actively cutting costs, canceling unused subs |
-| r/ynab | 200K+ | Budgeting users frustrated with subscription creep |
-| r/budgeting | 100K+ | Same — actively managing money |
-| r/macapps | 400K+ | Subscription tracker threads get high engagement |
-| r/SideProject | 2M+ | "Validating an idea" posts |
-| r/SomebodyMakeThis | 100K+ | Literally built for idea validation |
-| r/privacy | 1.5M+ | Privacy angle, Plaid alternatives |
-| r/adhdwomen | 1M+ | ADHD tax / forgotten subscription overlap |
-| r/GoogleGeminiAI | — | Recent high-pain thread ($1,950 autopay charge) |
-
-### Secondary channels
+### Primary channels
 
 | Channel | Why |
 |---|---|
-| **Product Hunt** | Subscription tracker category does well; privacy angle gets traction |
-| **Hacker News** | "Show HN: privacy-first alternative" trends consistently |
-| **Twitter/X** | Real-time pain signals: "just realized I'm paying for..." |
-| **YouTube comments** | Videos asking for Rocket Money alternatives — high-intent audience |
-| **Chrome Web Store SEO** | "subscription tracker," "gmail subscription scanner," "find forgotten subscriptions" |
+| **Twitter/X** | Real-time pain signals: "just realized I'm paying for..." High-intent audience. Easy to reply to existing threads. |
+| **Bluesky** | Best social platform for indie devs now. Authentic tech content gets organic reach. Small accounts can get discovered. |
+| **Indie Hackers** | Built for early-stage validation. Narrative-driven, supportive community. Good for building audience pre-launch. |
+| **Hacker News (Show HN)** | Technical/privacy angle resonates. "Show HN: privacy-first alternative" gets traction. 10K-50K visits on front page. |
+| **Product Hunt** | Launch-day spike (1K-3K upvotes, 5K-20K installs). Diminishing returns — best after some traction, not first. |
+| **Chrome Web Store SEO** | Long-term organic channel. Optimize title, description, screenshots. Most installs come from CWS search. |
+
+### Community & forum channels
+
+| Channel | Why |
+|---|---|
+| **Facebook Groups** | Personal finance & frugal living groups (millions of members). Active, engaged communities. Search for "subscription tracking," "frugal living," "budgeting" groups. |
+| **Indie Hackers forum** | Post build-in-public updates. Engage with other founders. Good for early validation and feedback. |
+| **Quora** | Answer questions about forgotten subscriptions / Rocket Money alternatives. Long-tail SEO value. |
+| **Dev.to** | Write tutorials: "How I built a Gmail subscription scanner" — dev audience + SEO. |
+| **LinkedIn** | Build-in-public posts about the journey. Connect with personal finance creators. |
+
+### Outreach & directory channels
+
+| Channel | Why |
+|---|---|
+| **AlternativeTo** | List Trackd as an alternative to Rocket Money / Track-Subs. High-intent traffic from people actively switching. |
+| **SaaSHub** | High-authority directory for SaaS tools. SEO backlinks + referral traffic. |
+| **YouTube comments** | Videos asking for Rocket Money alternatives. Reply with the stat + waitlist link. |
+| **YouTube (own content)** | Short video showing the extension scanning Gmail. "No bank login" angle works well for discovery. |
 
 ### Direct outreach targets
 
-- People who comment on Rocket Money, Truebill, or subscription cost threads — actively searching for a solution
+- People who comment on Rocket Money, Track-Subs, or Bobby — active dissatisfaction, looking for alternatives
 - Track-Subs users complaining about missing features (they want an extension, not a web app)
-- People searching "Rocket Money alternative without bank access" on Google, YouTube, Reddit
+- People searching "Rocket Money alternative without bank access" on Google, YouTube
 - Product Hunt comment sections of Rocket Money / Truebill / Bobby — complaints about bank access
+- Twitter/X: search `"just realized I'm paying for" OR "forgot to cancel" OR "Rocket Money alternative"`
 
 ---
 
 ## 7. Marketing & Outreach Plan
 
-### Week 1: Community listening (done — mixed results)
+### Phase 1: Social search & reply (now — this week)
 
-**What was executed:**
-- 7 Reddit threads commented on (r/Frugal × 3, r/GoogleGeminiAI, r/GrowthHacking, r/adhdwomen, r/marvelcomics)
-- **Result:** 0 responses on old threads. 1 meaningful conversation on r/GrowthHacking with u/Jeeennss (Untilly founder).
+The highest-leverage action right now is replying to people already expressing pain. No account-age gate, no filter issues.
 
-**Lesson learned:** Comments on existing threads have low ROI. Most threads were cold by the time we posted. Even fresh threads are noisy. Shift to DMs and original posts.
+**Action 1** — Twitter/X search & reply (~20 min)
 
-### Week 2: Direct DMs + original posts
+Search queries:
+- `"just realized I'm paying for" OR "forgot to cancel"`
+- `"Rocket Money alternative" OR "subscription tracker"`
+- `"need to cancel" subscription`
 
-**Action 1** — DM the people who already expressed pain (today, ~30 min)
+Find 10 recent posts. Reply with the pain stat + waitlist link. Don't pitch — offer the solution.
 
-Three active targets identified:
+*Example reply:*
+> *"The average person wastes $252/yr on forgotten subs. I'm building a Chrome extension that finds them from Gmail receipts — no bank login needed. Might help: [link]"*
 
-1. **u/infiunfi** (r/GoogleGeminiAI) — Got charged $1,950 for forgetting to cancel Gemini autopay. Huge pain, very recent.
-   > *"Saw your post about the $1,950 Gemini charge — glad the refund came through. That exact scenario is why I'm building a Chrome extension that catches forgotten subscriptions from Gmail before they renew. Would you be open to 3 quick questions about how you manage subscriptions now?"*
+**Action 2** — Bluesky posts (~10 min)
 
-2. **u/NomadicSlave** (r/amex) — Literally posted hours ago "completely forgot to cancel" Peacock/Apple TV bundle.
-   > *"Saw your thread about the Peacock bundle — the 'completely forgot to cancel' thing is so relatable. I'm working on a tool that catches these from Gmail before they hit your card. Mind if I ask you 3 quick questions?"*
+Post a build-in-public thread:
+- "Building a Chrome extension that scans Gmail for forgotten subscriptions. No bank login. No Plaid. Just your email."
+- Include the $252/yr stat
+- Engage with replies
+- Use #buildInPublic #indiedev tags
 
-3. **u/Jeeennss** (r/GrowthHacking) — Already have rapport. Learn from their launch experience.
-   > *"Hey — appreciate the convo on the GrowthHacking thread. I'm curious — when you were building Untilly, did you talk to users before launching? I'm trying to decide if I should build this thing or validate first. Would love to hear your experience."*
+**Action 3** — YouTube comment replies (~15 min)
 
-**Action 2** — Post your own validation thread (~15 min each)
+Search for "Rocket Money alternative" or "forgotten subscriptions" on YouTube. Find recent videos (last month). Reply with: "If you're looking for something that doesn't need bank access, I'm building a Chrome extension that works from Gmail. [link]"
 
-Post to:
-- **r/SomebodyMakeThis** — "A Chrome extension that finds every subscription you're paying for. No bank login, just Gmail."
-- **r/SideProject** — "I built a landing page before writing any code — am I doing this right?"
-- **r/privacy** — "How do you feel about Plaid-style bank access? I'm building a read-only Gmail alternative."
+### Phase 2: Indie Hackers + community posts (next week)
 
-**Action 3** — Twitter/X search & reply (~20 min)
+**Indie Hackers** — Post a narrative thread:
+- "I built a landing page to validate a Chrome extension idea. Here's what happened."
+- Share the stats, the privacy angle, the waitlist count
+- Ask for feedback on positioning and pricing
+- Indie Hackers audience is founders, many will sign up for the waitlist
 
-Search: `"just realized I'm paying for" OR "forgot to cancel" OR "subscription I don't use"`
-Find 10 recent posts. Reply with the stat + early access offer.
+**Facebook Groups** — Join and engage in:
+- Personal finance groups ("Subscriptions" is a frequent topic)
+- Frugal living groups
+- Privacy / security groups
 
-### Week 3: Land the landing page + secondary channels
+Post format: "Question for the group — does anyone use a subscription tracker? I'm building one that works from Gmail without bank access, curious what you all use."
 
-**Landing page** — `index.html` in this repo. Currently live at [NEED URL].
+**Quora** — Answer questions:
+- "What's the best way to track all my subscriptions?"
+- "Is there a Rocket Money alternative without bank access?"
+- "How do I find out what subscriptions I'm paying for?"
 
-Post it to:
-- r/SideProject (as "validating an idea," not a launch)
-- r/macapps
-- r/personalfinance (if rules allow)
+### Phase 3: Directory listing + CWS prep (before launch)
 
-Also:
-- Product Hunt comment sections of Rocket Money / Truebill / Bobby
-- YouTube comments on "Rocket Money alternative" videos
-- Google blog posts / Medium articles about Rocket Money alternatives
+**Directories to list on:**
+1. **AlternativeTo** — List as alternative to Rocket Money, Track-Subs, Bobby
+2. **SaaSHub** — High-authority SaaS directory
+3. **Chrome Web Store** — Only after build is complete. SEO-optimize title, description, screenshots
 
-### DM Scripts
+**Content marketing (long-term):**
+- Write a Dev.to post: "How I built a Gmail subscription scanner as a Chrome extension"
+- Write a LinkedIn post: "The $252/yr problem most people don't know they have"
 
-**Template A — Privacy concerns / "I don't want to give bank access"**
-> *"Saw your comment about subscription tracking. I'm looking into building a privacy-first option that works through Gmail instead — read-only, no bank login, no Plaid. Would you be open to a quick 3-question chat about what you actually need?"*
+### Outreach scripts
 
-**Template B — "I keep forgetting to cancel things"**
-> *"Saw your comment — the forgetting-to-cancel thing is so relatable. I'm exploring building a Chrome extension that auto-detects subscriptions from your Gmail so you never miss one. Mind if I ask you 3 quick questions?"*
+**Twitter/X reply template:**
+> *"$252/yr wasted on forgotten subs is the stat that got me. Building a Chrome extension that catches them from Gmail — no bank login, no Plaid. [link]"*
 
-**Template C — Landing page referral**
-> *"Hey — saw your comment about [subscriptions / forgetting to cancel]. I threw together a landing page for what I'm building — a Chrome extension that finds forgotten subscriptions from Gmail without bank access. Would this solve your problem? [link]"*
+**Bluesky build-in-public post:**
+> *"Day 1 of building a Chrome extension that finds forgotten subscriptions from Gmail. No bank access needed. The average American wastes $252/yr on unused subs. This should help. [link]"*
+
+**YouTube comment template:**
+> *"If you want a privacy-first option, I'm building a Chrome extension that works from Gmail alone — no bank credentials needed. Might be worth checking out: [link]"*
+
+**Facebook group post template:**
+> *"Quick question for the group — anyone here use a subscription tracker? I keep forgetting what I'm paying for. I'm looking at options that don't need bank access (privacy thing). What do you all use?"*
+
+**Indie Hackers post template:**
+> *"I'm validating a Chrome extension idea: scan Gmail for forgotten subscriptions, no bank login. Landing page is live. 0 signups so far — trying to figure out if I'm solving the wrong problem or just not reaching the right people. Thoughts?"*
 
 ---
 
@@ -313,19 +335,20 @@ Also:
 
 | Metric | Target | Current | Notes |
 |---|---|---|---|
-| DM conversations started | 15+ | 0 | Reddit comments didn't convert. Need to DM directly. |
-| Conversations completed | 5 | 1 (r/GrowthHacking) | Mostly peer chat, not validation interview. |
-| People describing the same pain unprompted | 3+ | 0 | No unprompted pain in replies. |
-| Waitlist signups | 20+ | 0 | Landing page just created, no backend yet. |
-| People saying "I'd pay $10/mo" | 5+ | 0 | Not yet asked. |
+| Twitter/X engagements (replies to pain posts) | 10+ | 0 | Highest-leverage action this week. |
+| Bluesky followers / engagement | 20+ | 0 | Build-in-public audience. |
+| Indie Hackers discussion engagement | 10+ replies | 0 | Post a validation thread. |
+| Waitlist signups | 20+ | 0 | Landing page + Netlify Forms live. |
+| People saying "I'd pay $X/mo" | 5+ | 0 | Not yet asked. |
 | People who actually joined a beta | 5+ | 0 | No beta to join yet. |
+| Facebook group comments / DMs | 5+ conversations | 0 | Join and engage in personal finance groups. |
 
 **Decision rules:**
-- **All 6 targets hit** → build the Chrome extension
+- **5+ targets hit** → build the Chrome extension
 - **3–4 targets hit** → keep validating, refine messaging
 - **< 3 targets hit** → seriously consider switching to Idea #3 (freelance client communication trail)
 
-**Current assessment:** 0 of 6 targets hit. The Week 1 approach (commenting on old threads) was ineffective. Week 2 pivot to DMs + original posts should produce better signal.
+**Current assessment:** 0 of 7 targets hit. Initial Reddit approach was blocked by new-account posting restrictions. Pivoted to Twitter/X, Bluesky, Indie Hackers, and Facebook Groups.
 
 ---
 
@@ -394,7 +417,10 @@ Also:
 - Rocket Money pricing page — rocketmoney.com
 - Business Insider (2025) — Plaid screen-scraping scrutiny
 - CNET Rocket Money review (2025) — cnet.com
-- r/personalfinance, r/Frugal, r/ynab, r/budgeting, r/macapps, r/SideProject, r/adhdwomen — Reddit thread analysis
+- Bluesky and Mastodon for Developer Marketing (2026) — daily.dev
+- How to Promote Your Chrome Extension (2026 Playbook) — Dupple
+- Side Project Launch Strategy 2026 (Product Hunt / HN / X / Bluesky / Indie Hackers) — youngju.dev
+- Best Directories to Submit Your Chrome Extension (2026) — SaaSCity
 
 ---
 
@@ -407,7 +433,7 @@ Kept as a fallback if subscription tracker doesn't validate.
 **Why it might work better:**
 - Authenticity — you've lost money to scope creep
 - Acute pain — single $2–5K losses vs $21/mo drip
-- Tight communities — r/freelance (1M+), active Slack/Discord
+- Tight communities — freelance Slack/Discord servers, LinkedIn freelance groups
 
 **Validation threshold:** 20+ freelancer waitlist signups before building.
 
