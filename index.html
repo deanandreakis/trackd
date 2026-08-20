@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trackd — Find forgotten subscriptions. No bank login.</title>
+  <meta name="description" content="A Chrome extension that scans your Gmail to find every subscription you're paying for. Privacy-first. No Plaid, no bank credentials.">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f8f9fb;
+      --surface: #ffffff;
+      --text: #1a1a2e;
+      --text-secondary: #6b7280;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --accent-soft: #eff6ff;
+      --border: #e5e7eb;
+      --stat-bg: #f0f4ff;
+      --radius: 12px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ---- Hero ---- */
+    .hero {
+      text-align: center;
+      padding: 80px 0 60px;
+    }
+
+    .badge {
+      display: inline-block;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 100px;
+      margin-bottom: 24px;
+      letter-spacing: 0.3px;
+    }
+
+    .hero h1 {
+      font-size: 42px;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.5px;
+      margin-bottom: 20px;
+    }
+
+    .hero h1 .highlight {
+      color: var(--accent);
+    }
+
+    .hero p {
+      font-size: 18px;
+      color: var(--text-secondary);
+      max-width: 540px;
+      margin: 0 auto 32px;
+    }
+
+    /* ---- Stat Block ---- */
+    .stat-block {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 40px;
+      max-width: 480px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      text-align: center;
+    }
+
+    .stat-number {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1.1;
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .stat-source {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-top: 2px;
+    }
+
+    /* ---- Signup Form ---- */
+    .signup-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 36px 32px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      margin-bottom: 48px;
+    }
+
+    .signup-card h2 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .signup-card p {
+      color: var(--text-secondary);
+      font-size: 15px;
+      margin-bottom: 20px;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .form-row input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 15px;
+      background: var(--bg);
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .form-row input:focus {
+      border-color: var(--accent);
+    }
+
+    .form-row button {
+      padding: 12px 24px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+
+    .form-row button:hover {
+      background: var(--accent-hover);
+    }
+
+    .form-row button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .form-message {
+      margin-top: 12px;
+      font-size: 14px;
+      min-height: 20px;
+    }
+
+    .form-message.success {
+      color: #16a34a;
+    }
+
+    .form-message.error {
+      color: #dc2626;
+    }
+
+    .form-note {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    /* ---- Features ---- */
+    .features {
+      padding: 0 0 60px;
+    }
+
+    .features h2 {
+      font-size: 22px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .feature-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .feature-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 22px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+
+    .feature-icon {
+      flex-shrink: 0;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .feature-icon.shield { background: #ede9fe; }
+    .feature-icon.search { background: #dbeafe; }
+    .feature-icon.globe { background: #d1fae5; }
+    .feature-icon.bell { background: #fef3c7; }
+
+    .feature-item h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .feature-item p {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    /* ---- How It Works ---- */
+    .how-it-works {
+      padding: 0 0 60px;
+    }
+
+    .how-it-works h2 {
+      font-size: 22px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    .step-number {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .step h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .step p {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    /* ---- FAQ ---- */
+    .faq {
+      padding: 0 0 60px;
+    }
+
+    .faq h2 {
+      font-size: 22px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .faq-item {
+      border-bottom: 1px solid var(--border);
+      padding: 16px 0;
+    }
+
+    .faq-item:first-child {
+      border-top: 1px solid var(--border);
+    }
+
+    .faq-question {
+      font-weight: 600;
+      font-size: 15px;
+      margin-bottom: 4px;
+    }
+
+    .faq-answer {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    /* ---- Footer ---- */
+    .footer {
+      text-align: center;
+      padding: 32px 0 48px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    /* ---- Mobile ---- */
+    @media (max-width: 540px) {
+      .hero { padding: 48px 0 36px; }
+      .hero h1 { font-size: 30px; }
+      .hero p { font-size: 16px; }
+      .stat-block { grid-template-columns: 1fr 1fr; }
+      .stat-number { font-size: 22px; }
+      .signup-card { padding: 24px 20px; }
+      .form-row { flex-direction: column; }
+      .form-row button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Hero -->
+  <section class="hero">
+    <span class="badge">Privacy-first Chrome extension</span>
+    <h1>
+      Find every subscription<br>
+      you're paying for.<br>
+      <span class="highlight">Without connecting your bank.</span>
+    </h1>
+    <p>
+      The average American wastes <strong>$252/year</strong> on unused subscriptions&mdash;up 24% from last year.
+      Trackd scans your Gmail receipts, finds everything, and helps you cancel what you don't need.
+      No bank login. No Plaid. Just your email.
+    </p>
+
+    <div class="stat-block">
+      <div class="stat-card">
+        <div class="stat-number">$252</div>
+        <div class="stat-label">Avg yearly waste per person</div>
+        <div class="stat-source">CNET/YouGov 2026</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">$111</div>
+        <div class="stat-label">Avg monthly subscription spend</div>
+        <div class="stat-source">CNET/YouGov 2026</div>
+      </div>
+    </div>
+
+    <div class="signup-card">
+      <h2>Get early access</h2>
+      <p>We're building now. Join the waitlist and we'll let you know the moment Trackd is ready.</p>
+      <form id="signup-form">
+        <div class="form-row">
+          <input type="email" id="email-input" placeholder="you@email.com" required autocomplete="email" />
+          <button type="submit" id="submit-btn">Join waitlist</button>
+        </div>
+      </form>
+      <div id="form-message" class="form-message"></div>
+      <div class="form-note">No spam. No bank data. Just your email and a heads-up when we launch.</div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features">
+    <h2>Why Trackd?</h2>
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="feature-icon shield">🔒</div>
+        <div>
+          <h3>No bank access required</h3>
+          <p>Works with read-only Gmail access. We never see your bank credentials, and your data stays on your device wherever possible.</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon search">🔍</div>
+        <div>
+          <h3>Finds what you forgot</h3>
+          <p>Netflix, Spotify, SaaS tools, gym memberships, free trials that converted&mdash;if it hit your Gmail, we&rsquo;ll surface it.</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon globe">🌍</div>
+        <div>
+          <h3>Works globally</h3>
+          <p>No US-only restriction. Trackd works wherever your email does, in any currency. Rocket Money is US-only&mdash;we&rsquo;re not.</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon bell">⏰</div>
+        <div>
+          <h3>Catches free trials before they charge</h3>
+          <p>Set it and forget it. Trackd alerts you before a free trial converts to paid&mdash;no more &ldquo;I forgot to cancel.&rdquo;</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section class="how-it-works">
+    <h2>How it works</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div>
+          <h3>Install the Chrome extension</h3>
+          <p>One-click install from the Chrome Web Store. No account creation required.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div>
+          <h3>Grant read-only Gmail access</h3>
+          <p>We scan your inbox for receipts, renewal notices, and free trial confirmations. We never read personal emails, and nothing leaves your browser without your consent.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div>
+          <h3>See every subscription in one dashboard</h3>
+          <p>Name, price, renewal date, and status&mdash;all in one place. Cancel what you don&rsquo;t need, keep what you use.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="faq">
+    <h2>Frequently asked questions</h2>
+    <div class="faq-item">
+      <div class="faq-question">Is this different from Rocket Money?</div>
+      <div class="faq-answer">Yes. Rocket Money requires full bank account access via Plaid. Trackd only needs read-only Gmail access. We can&rsquo;t see your bank balance, transactions, or anything outside your email receipts. Also, Rocket Money is US-only&mdash;Trackd works globally.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-question">What does &ldquo;read-only Gmail access&rdquo; mean?</div>
+      <div class="faq-answer">We request the Gmail API scope that lets us read email metadata and content only for billing-related messages (receipts, invoices, subscription confirmations). We never read personal emails, and you can revoke access at any time from your Google account settings.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-question">What happens to my data?</div>
+      <div class="faq-answer">We process as much as possible locally in your browser. Subscription data is stored on your device. We never sell your data. We never share your data. Our privacy policy will spell this out in more detail before launch.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-question">How much will it cost?</div>
+      <div class="faq-answer">A free tier will cover most people (up to 10 subscriptions, monthly scan). A pro tier (unlimited subs, weekly scans, cancellation guides) will be around $3-4/month. Early waitlist members will get a discount at launch.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-question">Does this work outside the US?</div>
+      <div class="faq-answer">Yes. As long as you use Gmail, Trackd works anywhere in the world and supports multiple currencies. Rocket Money is US-only&mdash;this is one of the main reasons we&rsquo;re building Trackd.</div>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <div class="signup-card" style="text-align:center;">
+    <h2>Ready to find what you&rsquo;re paying for?</h2>
+    <p style="max-width:420px;margin:6px auto 20px;">Join the waitlist. We&rsquo;ll email you the moment Trackd is ready.</p>
+    <form id="signup-form-2">
+      <div class="form-row" style="max-width:420px;margin:0 auto;">
+        <input type="email" id="email-input-2" placeholder="you@email.com" required autocomplete="email" />
+        <button type="submit" id="submit-btn-2">Join waitlist</button>
+      </div>
+    </form>
+    <div id="form-message-2" class="form-message"></div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>Trackd &mdash; Built by someone who was tired of paying for subscriptions they forgot about.</p>
+  </footer>
+
+</div>
+
+<script>
+  // ---- Form handler ----
+  function handleSubmit(formId, inputId, messageId, btnId) {
+    const form = document.getElementById(formId);
+    const input = document.getElementById(inputId);
+    const msg  = document.getElementById(messageId);
+    const btn  = document.getElementById(btnId);
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const email = input.value.trim();
+      if (!email) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Joining...';
+      msg.className = 'form-message';
+      msg.textContent = '';
+
+      try {
+        const res = await fetch('https://api.trackd.app/waitlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+
+        if (res.ok) {
+          msg.className = 'form-message success';
+          msg.textContent = "You're on the list! We'll be in touch.";
+          input.value = '';
+        } else {
+          const data = await res.json().catch(() => ({}));
+          msg.className = 'form-message error';
+          msg.textContent = data.error || 'Something went wrong. Try again?';
+        }
+      } catch {
+        msg.className = 'form-message error';
+        msg.textContent = "Couldn't connect. Mind trying again?";
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Join waitlist';
+      }
+    });
+  }
+
+  handleSubmit('signup-form', 'email-input', 'form-message', 'submit-btn');
+  handleSubmit('signup-form-2', 'email-input-2', 'form-message-2', 'submit-btn-2');
+</script>
+
+<!--
+  TODO before going live:
+  1. Deploy a waitlist endpoint at api.trackd.app/waitlist (or replace with your backend)
+  2. Add privacy policy link
+  3. Replace "Trackd" placeholder name if you pick a different name
+-->
+
+</body>
+</html>
