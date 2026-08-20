@@ -392,7 +392,8 @@
     <div class="signup-card">
       <h2>Get early access</h2>
       <p>We're building now. Join the waitlist and we'll let you know the moment Trackd is ready.</p>
-      <form id="signup-form">
+      <form id="signup-form" netlify name="waitlist">
+        <input type="hidden" name="form-name" value="waitlist">
         <div class="form-row">
           <input type="email" id="email-input" placeholder="you@email.com" required autocomplete="email" />
           <button type="submit" id="submit-btn">Join waitlist</button>
@@ -495,7 +496,8 @@
   <div class="signup-card" style="text-align:center;">
     <h2>Ready to find what you&rsquo;re paying for?</h2>
     <p style="max-width:420px;margin:6px auto 20px;">Join the waitlist. We&rsquo;ll email you the moment Trackd is ready.</p>
-    <form id="signup-form-2">
+    <form id="signup-form-2" netlify name="waitlist">
+      <input type="hidden" name="form-name" value="waitlist">
       <div class="form-row" style="max-width:420px;margin:0 auto;">
         <input type="email" id="email-input-2" placeholder="you@email.com" required autocomplete="email" />
         <button type="submit" id="submit-btn-2">Join waitlist</button>
@@ -531,10 +533,10 @@
       msg.textContent = '';
 
       try {
-        const res = await fetch('https://api.trackd.app/waitlist', {
+        const res = await fetch('/', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ 'form-name': 'waitlist', email }).toString(),
         });
 
         if (res.ok) {
@@ -562,9 +564,8 @@
 
 <!--
   TODO before going live:
-  1. Deploy a waitlist endpoint at api.trackd.app/waitlist (or replace with your backend)
-  2. Add privacy policy link
-  3. Replace "Trackd" placeholder name if you pick a different name
+  1. Add privacy policy link
+  2. Replace "Trackd" placeholder name if you pick a different name
 -->
 
 </body>
