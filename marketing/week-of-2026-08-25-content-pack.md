@@ -158,5 +158,6 @@ This is how we'll tell "nobody clicked" apart from "clicked but didn't convert" 
 | 2026-08-24/25 | YT | video comments | ✅ Posted | check incognito |
 | | Quora | | | |
 | 2026-08-25 | IH | validation thread ("roast my funnel") | ✅ Posted | n/a |
+| 2026-08-26 | IH | 2 likes, 1 comment (aryan_sinh: Gmail-trust = main barrier?) | ✅ Engaged | n/a |
 | | AltTo | | | |
 | | SaaSHub | | | |
