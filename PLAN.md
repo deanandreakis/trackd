@@ -4,7 +4,7 @@
 
 **Status:** Pre-validation (landing page live, waitlist collecting)
 **Name:** Trackd (placeholder — can change)
-**Last updated:** 2026-08-20
+**Last updated:** 2026-08-25
 
 ---
 
@@ -118,13 +118,24 @@ Existing tools either:
 | Competitor | Pricing | Phase | Assessment |
 |---|---|---|---|
 | **Track-Subs** | Free (10 subs, 1 scan/mo) / $6.99/mo or $59.99/yr | Live, most mature email competitor | **Closest competitor.** Web app (not extension). Two-layer AI detection, multi-currency, global. Explicitly positions "no Plaid." Most mature product with real testimonials. |
+| **KeepMySubs** | Free (10 subs, AI parse 25/day) / $6.99/mo or $69.99/yr | Live — **most serious email-automation threat** | Web app + iOS/Android. Automated from billing emails: AI bill parsing (paste/PDF), mailbox forwarding import on Pro, price-hike alerts, testimonials. Also ships an MCP server + CLI for AI agents (2026). Not a Chrome extension; uses a forwarding address rather than direct Gmail OAuth. |
+| **SubTracker** (subtracker.io) | Free (unlimited subs, manual entry) / Plus $5.90/mo / Family $9.90/mo | Live, strong SEO play | PWA/web + mobile. Manual entry with 130+ pre-loaded services & prices. NOT automatic scanning. Swiss GmbH, GDPR positioning, heavy /best/ content hub targeting "subscription tracker" searches. Shows manual trackers are commoditized — differentiation must come from automation. |
+| **Subnesio** | Free (10 subs) / $29.99/yr / $59 lifetime | Early, solo dev | Web app. Manual entry only — markets "no email scraping" as a privacy feature. Telegram + calendar reminders. Signals that some privacy-minded users distrust inbox access — a messaging risk to manage. |
 | **SubBuddy** | Freemium (signup required) | Early (v1.5.2, Jul 2026) | Chrome extension. Gmail + Outlook. Manual review before save. Privacy-first positioning. Spanish developer. |
 | **SaaS Subscription Tracker** | Free (10 subs) / $3/mo or $25/yr | Very early (v1.0.1, Jun 2026) | Chrome extension. Runs locally in browser. 5 ratings, solo dev. Minimal marketing. |
 | **Bobby** | $2.99 one-time (iOS only) | Live | Manual entry only. No auto-scan. Mobile-only. |
 
 ### Key competitive insight
 
-The **email-only × Chrome extension intersection is unowned.** Track-Subs is the closest competitor but it's a web app, not an extension. A polished Chrome extension could win on:
+The landscape is more crowded than initially mapped (updated 2026-08-25):
+
+- **Manual-entry trackers are commoditized** — SubTracker gives unlimited subs free, Subnesio/Bobby are cheap. A manually-populated dashboard alone is not a product.
+- **Email automation is owned at the web-app level** — Track-Subs and KeepMySubs both do it at ~$6.99/mo. KeepMySubs is effectively "Trackd's positioning as a web app" and is further along.
+- **The email-scan × Chrome extension intersection remains unowned** — nobody in the set ships a browser extension that reads Gmail directly. That is still the wedge.
+- **Pricing validation:** two independent competitors landed at $6.99/mo; our proposed $3.99 undercuts the whole email-automation field.
+- **Messaging risk discovered:** Subnesio sells "no email scraping" as a feature — meaning inbox-access trust objections are real and must be answered head-on (local processing, read-only scope, revoke anytime).
+
+A polished Chrome extension could win on:
 - **Convenience** — always in the browser, no separate app to remember
 - **Privacy** — local processing, no cloud account needed
 - **Global reach** — Rocket Money is US-only, we work anywhere Gmail works
@@ -137,7 +148,7 @@ The **email-only × Chrome extension intersection is unowned.** Track-Subs is th
 | Bargaining power of buyers | High | Zero switching cost. Free alternatives exist. |
 | Threat of substitutes | High | Credit card review, spreadsheets, doing nothing. |
 | Bargaining power of suppliers | Low | Gmail API free within rate limits. Chrome Web Store free. |
-| Competitive rivalry | Moderate | Fragmented. Rocket Money dominates bank-linked but different positioning. Track-Subs closest email competitor — also early. |
+| Competitive rivalry | Higher than first mapped | Fragmented but converging. Rocket Money dominates bank-linked. Email-automation has two live players (~$6.99/mo); manual trackers are commoditized. Extension wedge still open. |
 
 ---
 
@@ -216,7 +227,6 @@ Trackd (proposed) ───── $3.99/mo  ← we are here
 | Channel | Why |
 |---|---|
 | **Twitter/X** | Real-time pain signals: "just realized I'm paying for..." High-intent audience. Easy to reply to existing threads. |
-| **Bluesky** | Best social platform for indie devs now. Authentic tech content gets organic reach. Small accounts can get discovered. |
 | **Indie Hackers** | Built for early-stage validation. Narrative-driven, supportive community. Good for building audience pre-launch. |
 | **Hacker News (Show HN)** | Technical/privacy angle resonates. "Show HN: privacy-first alternative" gets traction. 10K-50K visits on front page. |
 | **Product Hunt** | Launch-day spike (1K-3K upvotes, 5K-20K installs). Diminishing returns — best after some traction, not first. |
@@ -269,14 +279,6 @@ Find 10 recent posts. Reply with the pain stat + waitlist link. Don't pitch — 
 *Example reply:*
 > *"The average person wastes $252/yr on forgotten subs. I'm building a Chrome extension that finds them from Gmail receipts — no bank login needed. Might help: [link]"*
 
-**Action 2** — Bluesky posts (~10 min)
-
-Post a build-in-public thread:
-- "Building a Chrome extension that scans Gmail for forgotten subscriptions. No bank login. No Plaid. Just your email."
-- Include the $252/yr stat
-- Engage with replies
-- Use #buildInPublic #indiedev tags
-
 **Action 3** — YouTube comment replies (~15 min)
 
 Search for "Rocket Money alternative" or "forgotten subscriptions" on YouTube. Find recent videos (last month). Reply with: "If you're looking for something that doesn't need bank access, I'm building a Chrome extension that works from Gmail. [link]"
@@ -317,9 +319,6 @@ Post format: "Question for the group — does anyone use a subscription tracker?
 **Twitter/X reply template:**
 > *"$252/yr wasted on forgotten subs is the stat that got me. Building a Chrome extension that catches them from Gmail — no bank login, no Plaid. [link]"*
 
-**Bluesky build-in-public post:**
-> *"Day 1 of building a Chrome extension that finds forgotten subscriptions from Gmail. No bank access needed. The average American wastes $252/yr on unused subs. This should help. [link]"*
-
 **YouTube comment template:**
 > *"If you want a privacy-first option, I'm building a Chrome extension that works from Gmail alone — no bank credentials needed. Might be worth checking out: [link]"*
 
@@ -336,7 +335,6 @@ Post format: "Question for the group — does anyone use a subscription tracker?
 | Metric | Target | Current | Notes |
 |---|---|---|---|
 | Twitter/X engagements (replies to pain posts) | 10+ | 0 | Highest-leverage action this week. |
-| Bluesky followers / engagement | 20+ | 0 | Build-in-public audience. |
 | Indie Hackers discussion engagement | 10+ replies | 0 | Post a validation thread. |
 | Waitlist signups | 20+ | 0 | Landing page + Netlify Forms live. |
 | People saying "I'd pay $X/mo" | 5+ | 0 | Not yet asked. |
@@ -344,11 +342,11 @@ Post format: "Question for the group — does anyone use a subscription tracker?
 | Facebook group comments / DMs | 5+ conversations | 0 | Join and engage in personal finance groups. |
 
 **Decision rules:**
-- **5+ targets hit** → build the Chrome extension
-- **3–4 targets hit** → keep validating, refine messaging
-- **< 3 targets hit** → seriously consider switching to Idea #3 (freelance client communication trail)
+- **4+ targets hit** → build the Chrome extension
+- **2–3 targets hit** → keep validating, refine messaging
+- **< 2 targets hit** → seriously consider switching to Idea #3 (freelance client communication trail)
 
-**Current assessment:** 0 of 7 targets hit. Initial Reddit approach was blocked by new-account posting restrictions. Pivoted to Twitter/X, Bluesky, Indie Hackers, and Facebook Groups.
+**Current assessment:** Phase 1 (Now) executed on Twitter/X and YouTube; Bluesky skipped by choice. Scorecard now tracks 6 targets. Initial Reddit approach was blocked by new-account posting restrictions.
 
 ---
 
@@ -398,7 +396,7 @@ Post format: "Question for the group — does anyone use a subscription tracker?
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
 | Rocket Money builds email-scanning feature | Low | High | Unlikely soon — their model is Plaid/bank aggregation. Unlikely to pivot. |
-| Track-Subs or SubBuddy captures the niche first | Medium | High | Track-Subs is live with more complete product. They could wrap as extension. Differentiate on polish + privacy. |
+| Track-Subs / KeepMySubs / SubBuddy capture the niche first | **High** | High | KeepMySubs already does automated email detection as web+mobile with agent integrations. They could ship an extension. Differentiate on extension-native UX, local-only processing, and price ($3.99 vs $6.99). Speed matters more than before. |
 | Low conversion from free to paid | Medium | High | Free tier limits discovered. SaaS Sub Tracker has 5 ratings vs Rocket Money's 200K+. Need strong paid hook. |
 | Gmail API policy changes | Low | Critical | Google could restrict email scanning. Currently allowed with user consent. Monitor policy changes. |
 | Churn (users clean subs then leave) | Medium | Medium | Subscription fatigue applies to tracking tool itself. Mitigate with ongoing alerts + new sub detection. |
@@ -414,6 +412,9 @@ Post format: "Question for the group — does anyone use a subscription tracker?
 - SaaS Subscription Tracker Chrome Web Store listing — chromewebstore.google.com
 - SubBuddy Chrome Web Store listing — chromewebstore.google.com
 - Track-Subs website — track-subs.com
+- KeepMySubs website — keepmysubs.com (reviewed 2026-08-25)
+- SubTracker website — subtracker.io (reviewed 2026-08-25)
+- Subnesio website — subnesio.one (reviewed 2026-08-25)
 - Rocket Money pricing page — rocketmoney.com
 - Business Insider (2025) — Plaid screen-scraping scrutiny
 - CNET Rocket Money review (2025) — cnet.com
