@@ -1,6 +1,6 @@
 # Trackd — Weekly Content Pack (week of 2026-08-25)
 
-**How to use:** Every draft below is paste-ready. Replace `[LINK]` with the correct UTM link from §6 before posting. Log what you post in §7 so we can update the scorecard.
+**How to use:** Every draft below is paste-ready with its tracking link already baked in. Log what you post in §7 so we can update the scorecard.
 
 **Landing page note:** I couldn't verify your live URL from the repo — replace `https://trackd-deanware.netlify.app` everywhere with your real Netlify URL.
 
@@ -23,16 +23,16 @@ Sort by Latest. Pick **10 posts from the last 3 days** with any engagement (repl
 ### Reply drafts by scenario
 
 **Scenario A — generic complaint about a forgotten subscription:**
-> The average person wastes $252/yr on subs they forgot about (CNET's number, not mine). I'm building a Chrome extension that finds them all from your Gmail receipts — no bank login needed. Might be useful when it ships: [LINK]
+> The average person wastes $252/yr on subs they forgot about (CNET's number, not mine). I'm building a Chrome extension that finds them all from your Gmail receipts — no bank login needed. Might be useful when it ships: https://trackd-deanware.netlify.app/?utm_source=x&utm_campaign=w34
 
 **Scenario B — someone asks for a Rocket Money alternative:**
-> Rocket Money needs full bank access via Plaid, which ~40% of people refuse to give. There's another way: scanning your email receipts instead. I'm building exactly that as a Chrome extension — read-only Gmail, nothing else: [LINK]
+> Rocket Money needs full bank access via Plaid, which ~40% of people refuse to give. There's another way: scanning your email receipts instead. I'm building exactly that as a Chrome extension — read-only Gmail, nothing else: https://trackd-deanware.netlify.app/?utm_source=x&utm_campaign=w34
 
 **Scenario C — got charged after forgetting a free trial:**
-> This exact pain is why I'm building Trackd — it reads your Gmail for trial signups and alerts you *before* they convert to paid. No bank login required. Waitlist here if useful: [LINK]
+> This exact pain is why I'm building Trackd — it reads your Gmail for trial signups and alerts you *before* they convert to paid. No bank login required. Waitlist here if useful: https://trackd-deanware.netlify.app/?utm_source=x&utm_campaign=w34
 
 **Scenario D — "how do I even find everything I'm subscribed to":**
-> Trick most people miss: search your inbox for receipts ("your receipt", "subscription", "renewal"). I'm building a tool that automates exactly that scan — free Chrome extension, Gmail-only: [LINK]
+> Trick most people miss: search your inbox for receipts ("your receipt", "subscription", "renewal"). I'm building a tool that automates exactly that scan — free Chrome extension, Gmail-only: https://trackd-deanware.netlify.app/?utm_source=x&utm_campaign=w34
 
 **Tone rules:** never post the same reply twice verbatim (spam detection); drop the link on posts that look ban-sensitive and just ask "DM me if you want the waitlist link."
 
@@ -114,7 +114,7 @@ So — founders of IH — where's the break?
 3. Trust gap? Would you grant a random extension read-only Gmail access?
 4. Wrong channel entirely?
 
-Roast away. Landing page: [LINK]. What would make you sign up — or what makes this a "nice idea, would never install"?
+Roast away. Landing page: https://trackd-deanware.netlify.app/?utm_source=indiehackers&utm_campaign=w34 — What would make you sign up — or what makes this a "nice idea, would never install"?
 
 ---
 
@@ -154,10 +154,9 @@ This is how we'll tell "nobody clicked" apart from "clicked but didn't convert" 
 
 | Date | Channel | Where / link | Posted? | Visible logged-out? |
 |---|---|---|---|---|
-| | X | | | |
-| | X | | | |
-| | YT | | | |
+| 2026-08-24/25 | X | pain-post replies | ✅ Posted | check incognito |
+| 2026-08-24/25 | YT | video comments | ✅ Posted | check incognito |
 | | Quora | | | |
-| | IH | | | |
+| 2026-08-25 | IH | validation thread ("roast my funnel") | ✅ Posted | n/a |
 | | AltTo | | | |
 | | SaaSHub | | | |

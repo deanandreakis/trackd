@@ -334,8 +334,8 @@ Post format: "Question for the group — does anyone use a subscription tracker?
 
 | Metric | Target | Current | Notes |
 |---|---|---|---|
-| Twitter/X engagements (replies to pain posts) | 10+ | 0 | Highest-leverage action this week. |
-| Indie Hackers discussion engagement | 10+ replies | 0 | Post a validation thread. |
+| Twitter/X engagements (replies to pain posts) | 10+ | Done 2026-08-24/25, awaiting engagement data | Replies posted; check impressions + whether links carried UTM tags. |
+| Indie Hackers discussion engagement | 10+ replies | Posted 2026-08-25, awaiting responses | Validation thread live ("roast my funnel" framing). Monitor + reply to every comment within 24h. |
 | Waitlist signups | 20+ | 0 | Landing page + Netlify Forms live. |
 | People saying "I'd pay $X/mo" | 5+ | 0 | Not yet asked. |
 | People who actually joined a beta | 5+ | 0 | No beta to join yet. |

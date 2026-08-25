@@ -394,6 +394,8 @@
       <p>We're building now. Join the waitlist and we'll let you know the moment Trackd is ready.</p>
       <form id="signup-form" netlify name="waitlist">
         <input type="hidden" name="form-name" value="waitlist">
+        <input type="hidden" name="utm_source" value="direct">
+        <input type="hidden" name="utm_campaign" value="none">
         <div class="form-row">
           <input type="email" id="email-input" name="email" placeholder="you@email.com" required autocomplete="email" />
           <button type="submit" id="submit-btn">Join waitlist</button>
@@ -498,6 +500,8 @@
     <p style="max-width:420px;margin:6px auto 20px;">Join the waitlist. We&rsquo;ll email you the moment Trackd is ready.</p>
     <form id="signup-form-2" netlify name="waitlist">
       <input type="hidden" name="form-name" value="waitlist">
+      <input type="hidden" name="utm_source" value="direct">
+      <input type="hidden" name="utm_campaign" value="none">
       <div class="form-row" style="max-width:420px;margin:0 auto;">
         <input type="email" id="email-input-2" name="email" placeholder="you@email.com" required autocomplete="email" />
         <button type="submit" id="submit-btn-2">Join waitlist</button>
@@ -514,6 +518,44 @@
 </div>
 
 <script>
+  // ---- UTM capture: fills hidden form fields from the page URL ----
+  // Tagged links look like: /?utm_source=x&utm_campaign=w34
+  (function () {
+    const params = new URLSearchParams(window.location.search);
+    ['utm_source', 'utm_campaign'].forEach(function (key) {
+      const value = params.get(key);
+      if (!value) return;
+      document.querySelectorAll('input[name="' + key + '"]').forEach(function (el) {
+        el.value = value;
+      });
+    });
+  })();
+
+  // ---- Conversion tracking ----
+  // Fires a waitlist-signup event through whichever analytics tool is loaded.
+  // No-op (console only) if none is installed yet.
+  function trackConversion() {
+    const source = document.querySelector('input[name="utm_source"]').value || 'direct';
+
+    // Plausible: https://plausible.io/docs/custom-event-goals
+    if (typeof window.plausible === 'function') {
+      window.plausible('Waitlist Signup', { props: { source: source } });
+    }
+
+    // GoatCounter: https://www.goatcounter.com/help/events
+    if (window.goatcounter && typeof window.goatcounter.count === 'function') {
+      window.goatcounter.count({ path: 'waitlist-signup', title: source, event: true });
+    }
+
+    // Umami Cloud: https://umami.is/docs/tracker-functions
+    if (window.umami && typeof window.umami.track === 'function') {
+      window.umami.track('Waitlist Signup', { source: source });
+    }
+
+    // Always visible in devtools so you can verify firing without any tool installed
+    console.log('[trackd] conversion: waitlist_signup, source=' + source);
+  }
+
   // ---- Form handler ----
   function handleSubmit(formId, inputId, messageId, btnId) {
     const form = document.getElementById(formId);
@@ -536,13 +578,19 @@
         const res = await fetch('/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ 'form-name': 'waitlist', email }).toString(),
+          body: new URLSearchParams({
+            'form-name': 'waitlist',
+            email,
+            utm_source: form.querySelector('input[name="utm_source"]').value,
+            utm_campaign: form.querySelector('input[name="utm_campaign"]').value,
+          }).toString(),
         });
 
         if (res.ok) {
           msg.className = 'form-message success';
           msg.textContent = "You're on the list! We'll be in touch.";
           input.value = '';
+          trackConversion();
         } else {
           const data = await res.json().catch(() => ({}));
           msg.className = 'form-message error';
