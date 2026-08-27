@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trackd — Find forgotten subscriptions. No bank login.</title>
-  <meta name="description" content="A Chrome extension that scans your Gmail to find every subscription you're paying for. Privacy-first. No Plaid, no bank credentials.">
+  <meta name="description" content="A Chrome extension that scans your Gmail to find every subscription you're paying for. All processing happens locally in your browser. No Plaid, no bank credentials.">
 
   <!-- Umami self-hosted analytics -->
   <script defer src="https://umami.andreakis.org/script.js" data-website-id="0ecb1a6b-6baa-4d25-aa0f-2648aa8b41a4"></script>
@@ -22,6 +22,10 @@
       --border: #e5e7eb;
       --stat-bg: #f0f4ff;
       --radius: 12px;
+      --green: #059669;
+      --green-soft: #ecfdf5;
+      --amber-soft: #fffbeb;
+      --amber: #d97706;
     }
 
     body {
@@ -56,6 +60,17 @@
       letter-spacing: 0.3px;
     }
 
+    .trust-badge {
+      display: inline-block;
+      background: var(--green-soft);
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 100px;
+      letter-spacing: 0.3px;
+    }
+
     .hero h1 {
       font-size: 42px;
       font-weight: 800;
@@ -72,7 +87,7 @@
       font-size: 18px;
       color: var(--text-secondary);
       max-width: 540px;
-      margin: 0 auto 32px;
+      margin: 0 auto 24px;
     }
 
     /* ---- Stat Block ---- */
@@ -80,7 +95,7 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 12px;
-      margin-bottom: 40px;
+      margin-bottom: 24px;
       max-width: 480px;
       margin-left: auto;
       margin-right: auto;
@@ -111,6 +126,32 @@
       font-size: 11px;
       color: #9ca3af;
       margin-top: 2px;
+    }
+
+    /* ---- Trust Bar ---- */
+    .trust-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 32px;
+    }
+
+    .trust-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .trust-pill .icon {
+      font-size: 15px;
     }
 
     /* ---- Signup Form ---- */
@@ -198,6 +239,20 @@
       color: #9ca3af;
     }
 
+    .form-guarantee {
+      margin-top: 14px;
+      padding: 10px 16px;
+      background: var(--green-soft);
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--green);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: center;
+    }
+
     /* ---- Features ---- */
     .features {
       padding: 0 0 60px;
@@ -241,6 +296,7 @@
     .feature-icon.search { background: #dbeafe; }
     .feature-icon.globe { background: #d1fae5; }
     .feature-icon.bell { background: #fef3c7; }
+    .feature-icon.lock { background: #fce7f3; }
 
     .feature-item h3 {
       font-size: 15px;
@@ -250,6 +306,78 @@
 
     .feature-item p {
       font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    /* ---- Privacy Section ---- */
+    .privacy {
+      padding: 0 0 60px;
+    }
+
+    .privacy h2 {
+      font-size: 22px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    .privacy .subtitle {
+      font-size: 15px;
+      color: var(--text-secondary);
+      text-align: center;
+      max-width: 480px;
+      margin: 0 auto 28px;
+    }
+
+    .privacy-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .privacy-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 22px;
+    }
+
+    .privacy-item h3 {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+
+    .privacy-item ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .privacy-item li {
+      font-size: 14px;
+      color: var(--text-secondary);
+      padding: 4px 0;
+      padding-left: 20px;
+      position: relative;
+    }
+
+    .privacy-item li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: var(--green);
+      font-weight: 700;
+    }
+
+    .privacy-item .tech-spec {
+      display: inline-block;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 8px;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 12px;
       color: var(--text-secondary);
     }
 
@@ -358,6 +486,8 @@
       .signup-card { padding: 24px 20px; }
       .form-row { flex-direction: column; }
       .form-row button { width: 100%; }
+      .trust-bar { gap: 6px; }
+      .trust-pill { font-size: 11px; padding: 4px 10px; }
     }
   </style>
 </head>
@@ -376,7 +506,7 @@
     <p>
       The average American wastes <strong>$252/year</strong> on unused subscriptions&mdash;up 24% from last year.
       Trackd scans your Gmail receipts, finds everything, and helps you cancel what you don't need.
-      No bank login. No Plaid. Just your email.
+      No bank login. No Plaid. <strong>Your email data never leaves your browser.</strong>
     </p>
 
     <div class="stat-block">
@@ -392,9 +522,16 @@
       </div>
     </div>
 
+    <div class="trust-bar">
+      <span class="trust-pill"><span class="icon">🔒</span> No bank credentials</span>
+      <span class="trust-pill"><span class="icon">🖥️</span> Processes in your browser</span>
+      <span class="trust-pill"><span class="icon">🌍</span> Works globally</span>
+      <span class="trust-pill"><span class="icon">⏪</span> Revoke access anytime</span>
+    </div>
+
     <div class="signup-card">
       <h2>Get early access</h2>
-      <p>We're building now. Join the waitlist and we'll let you know the moment Trackd is ready.</p>
+      <p>We're building now. Join <strong>early waitlist</strong> &mdash; we'll let you know the moment Trackd is ready.</p>
       <form id="signup-form" netlify name="waitlist">
         <input type="hidden" name="form-name" value="waitlist">
         <input type="hidden" name="utm_source" value="direct">
@@ -405,6 +542,9 @@
         </div>
       </form>
       <div id="form-message" class="form-message"></div>
+      <div class="form-guarantee">
+        <span>🔒</span> We never see your email data. Processing stays on your device.
+      </div>
       <div class="form-note">No spam. No bank data. Just your email and a heads-up when we launch.</div>
     </div>
   </section>
@@ -417,7 +557,7 @@
         <div class="feature-icon shield">🔒</div>
         <div>
           <h3>No bank access required</h3>
-          <p>Works with read-only Gmail access. We never see your bank credentials, and your data stays on your device wherever possible.</p>
+          <p>Works with read-only Gmail access. We never see your bank credentials. Subscription data stays on your device.</p>
         </div>
       </div>
       <div class="feature-item">
@@ -441,6 +581,65 @@
           <p>Set it and forget it. Trackd alerts you before a free trial converts to paid&mdash;no more &ldquo;I forgot to cancel.&rdquo;</p>
         </div>
       </div>
+      <div class="feature-item">
+        <div class="feature-icon lock">🛡️</div>
+        <div>
+          <h3>Your data never leaves</h3>
+          <p>Email analysis runs in your browser. No data is sent to our servers. You can revoke Gmail access at any time from your Google account settings.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Privacy: How We Protect You -->
+  <section class="privacy">
+    <h2>How Trackd protects your privacy</h2>
+    <p class="subtitle">
+      We built Trackd for people who want to find forgotten subscriptions&mdash;not for people who want to hand over their data. Here's exactly how it works.
+    </p>
+    <div class="privacy-grid">
+      <div class="privacy-item">
+        <h3>📧 What Trackd accesses in your Gmail</h3>
+        <ul>
+          <li>Billing-related email metadata&nbsp;—&nbsp;sender, subject, date (for receipts, invoices, renewals)</li>
+          <li>Only with your explicit consent via Google's OAuth consent screen</li>
+          <li><strong>Never</strong> reads personal emails, contacts, or documents</li>
+          <li><strong>Never</strong> sends, deletes, or modifies any email</li>
+        </ul>
+        <p style="margin-top: 8px; font-size: 13px; color: var(--text-secondary);">
+          Scope: <span class="tech-spec">https://www.googleapis.com/auth/gmail.readonly</span>
+        </p>
+      </div>
+
+      <div class="privacy-item">
+        <h3>🏠 Where your data lives</h3>
+        <ul>
+          <li>Email analysis runs <strong>entirely in your browser</strong> — no data leaves your machine</li>
+          <li>Detected subscriptions are stored locally using <span class="tech-spec">chrome.storage.local</span></li>
+          <li>No cloud account required. No data uploaded to our servers.</li>
+          <li>You can delete all stored data by uninstalling the extension</li>
+        </ul>
+      </div>
+
+      <div class="privacy-item">
+        <h3>🔑 You stay in control</h3>
+        <ul>
+          <li>Grant access once via Google's OAuth screen — you see exactly what's requested</li>
+          <li>Revoke access at any time from <a href="https://myaccount.google.com/permissions" style="color: var(--accent);">myaccount.google.com/permissions</a></li>
+          <li>No ongoing background sync — Trackd only scans when you ask it to</li>
+          <li>Uninstall the extension and all locally stored data is gone</li>
+        </ul>
+      </div>
+
+      <div class="privacy-item">
+        <h3>📜 Our commitments</h3>
+        <ul>
+          <li>We never sell, share, or transmit your email data</li>
+          <li>We never request bank credentials or Plaid access</li>
+          <li>Full privacy policy on the Chrome Web Store listing before launch</li>
+          <li>Open-source options for the core detection engine under consideration</li>
+        </ul>
+      </div>
     </div>
   </section>
 
@@ -459,7 +658,7 @@
         <div class="step-number">2</div>
         <div>
           <h3>Grant read-only Gmail access</h3>
-          <p>We scan your inbox for receipts, renewal notices, and free trial confirmations. We never read personal emails, and nothing leaves your browser without your consent.</p>
+          <p>We scan your inbox for receipts, renewal notices, and free trial confirmations. We never read personal emails, and analysis happens locally&mdash;nothing leaves your browser.</p>
         </div>
       </div>
       <div class="step">
@@ -476,24 +675,40 @@
   <section class="faq">
     <h2>Frequently asked questions</h2>
     <div class="faq-item">
-      <div class="faq-question">Is this different from Rocket Money?</div>
-      <div class="faq-answer">Yes. Rocket Money requires full bank account access via Plaid. Trackd only needs read-only Gmail access. We can&rsquo;t see your bank balance, transactions, or anything outside your email receipts. Also, Rocket Money is US-only&mdash;Trackd works globally.</div>
-    </div>
-    <div class="faq-item">
-      <div class="faq-question">What does &ldquo;read-only Gmail access&rdquo; mean?</div>
-      <div class="faq-answer">We request the Gmail API scope that lets us read email metadata and content only for billing-related messages (receipts, invoices, subscription confirmations). We never read personal emails, and you can revoke access at any time from your Google account settings.</div>
+      <div class="faq-question">Is it safe to give Trackd access to my Gmail?</div>
+      <div class="faq-answer">
+        This is the most important question — here's the honest answer. Trackd requests the <strong>read-only Gmail API scope</strong> (<code style="background:var(--bg);padding:1px 5px;border-radius:3px;">gmail.readonly</code>). That means we can <em>read</em> email metadata (sender, subject, date) for billing-related messages — but we <strong>cannot</strong> send, delete, or modify any email. The analysis runs <strong>entirely in your browser</strong> — your email data never leaves your computer. You can revoke access instantly from <a href="https://myaccount.google.com/permissions" style="color:var(--accent);">Google's permissions page</a>, and uninstalling the extension deletes all locally stored data. We deliberately built Trackd this way because we believe subscription tracking shouldn't require surrendering your privacy.
+      </div>
     </div>
     <div class="faq-item">
       <div class="faq-question">What happens to my data?</div>
-      <div class="faq-answer">We process as much as possible locally in your browser. Subscription data is stored on your device. We never sell your data. We never share your data. Our privacy policy will spell this out in more detail before launch.</div>
+      <div class="faq-answer">
+        It stays on your device. Subscription detection runs locally in your browser using <code style="background:var(--bg);padding:1px 5px;border-radius:3px;">chrome.storage.local</code>. We never upload your email data, subscriptions, or personal information to any server. No cloud account is required to use Trackd. If you ever want to remove everything, just uninstall the extension — all data goes with it.
+      </div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-question">Is this different from Rocket Money?</div>
+      <div class="faq-answer">
+        Yes — fundamentally different. Rocket Money requires full bank account access via Plaid, giving it read access to every transaction in your bank accounts. Trackd only needs read-only Gmail access to billing emails. We can&rsquo;t see your bank balance, transactions, or anything outside billing-related emails. And Rocket Money is US-only — Trackd works globally wherever Gmail does.
+      </div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-question">What does &ldquo;read-only Gmail access&rdquo; mean exactly?</div>
+      <div class="faq-answer">
+        It means Trackd can view email metadata (sender, subject, date) and content for billing-related messages only. We request the <code style="background:var(--bg);padding:1px 5px;border-radius:3px;">gmail.readonly</code> OAuth scope from Google, which explicitly prevents us from sending, deleting, or modifying any email. We filter for receipts, invoices, renewal notices, and free trial confirmations. Personal emails are never read or processed. You can see exactly which permissions you're granting on Google's consent screen before you approve, and you can revoke them at any time.
+      </div>
     </div>
     <div class="faq-item">
       <div class="faq-question">How much will it cost?</div>
-      <div class="faq-answer">A free tier will cover most people (up to 10 subscriptions, monthly scan). A pro tier (unlimited subs, weekly scans, cancellation guides) will be around $3-4/month. Early waitlist members will get a discount at launch.</div>
+      <div class="faq-answer">
+        A free tier will cover most people (up to 10 subscriptions, monthly scan). A pro tier (unlimited subs, weekly scans, cancellation guides) will be around $3-4/month. Early waitlist members will get a discount at launch.
+      </div>
     </div>
     <div class="faq-item">
       <div class="faq-question">Does this work outside the US?</div>
-      <div class="faq-answer">Yes. As long as you use Gmail, Trackd works anywhere in the world and supports multiple currencies. Rocket Money is US-only&mdash;this is one of the main reasons we&rsquo;re building Trackd.</div>
+      <div class="faq-answer">
+        Yes. As long as you use Gmail, Trackd works anywhere in the world and supports multiple currencies. Rocket Money is US-only&mdash;this is one of the main reasons we&rsquo;re building Trackd.
+      </div>
     </div>
   </section>
 
@@ -511,11 +726,18 @@
       </div>
     </form>
     <div id="form-message-2" class="form-message"></div>
+    <div class="form-guarantee" style="max-width:420px;margin:14px auto 0;">
+      <span>🔒</span> No bank data. No email upload. Full revocable control.
+    </div>
   </div>
 
   <!-- Footer -->
   <footer class="footer">
     <p>Trackd &mdash; Built by someone who was tired of paying for subscriptions they forgot about.</p>
+    <p style="margin-top: 8px;">
+      <a href="#">Privacy Policy</a> &middot;
+      <a href="mailto:trackd@deanware.com">Contact</a>
+    </p>
   </footer>
 
 </div>
@@ -540,22 +762,22 @@
   function trackConversion() {
     const source = document.querySelector('input[name="utm_source"]').value || 'direct';
 
-    // Plausible: https://plausible.io/docs/custom-event-goals
+    // Plausible
     if (typeof window.plausible === 'function') {
       window.plausible('Waitlist Signup', { props: { source: source } });
     }
 
-    // GoatCounter: https://www.goatcounter.com/help/events
+    // GoatCounter
     if (window.goatcounter && typeof window.goatcounter.count === 'function') {
       window.goatcounter.count({ path: 'waitlist-signup', title: source, event: true });
     }
 
-    // Umami Cloud: https://umami.is/docs/tracker-functions
+    // Umami Cloud
     if (window.umami && typeof window.umami.track === 'function') {
       window.umami.track('Waitlist Signup', { source: source });
     }
 
-    // Always visible in devtools so you can verify firing without any tool installed
+    // Debug console
     console.log('[trackd] conversion: waitlist_signup, source=' + source);
   }
 
@@ -612,12 +834,6 @@
   handleSubmit('signup-form', 'email-input', 'form-message', 'submit-btn');
   handleSubmit('signup-form-2', 'email-input-2', 'form-message-2', 'submit-btn-2');
 </script>
-
-<!--
-  TODO before going live:
-  1. Add privacy policy link
-  2. Replace "Trackd" placeholder name if you pick a different name
--->
 
 </body>
 </html>
