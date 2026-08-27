@@ -35,29 +35,19 @@ Search for each and click "Suggest as alternative":
 
 ---
 
-## 2. SaaSHub
+## 2. SaaSHub — SKIP (pre-launch)
 
-**Registration:** https://www.saashub.com/register (email + password)
+**SaaSHub's guidelines explicitly reject:**
+- Landing pages with an email form for a waiting list ❌
+- Products that are not released yet ❌
+- Products using free subdomains (e.g., `myapp.netlify.app`) ❌
 
-**Submit product:** After registering, go to the "Submit" tab on your product management page.
+Trackd hits all three. **Skip SaaSHub until the extension is live on the Chrome Web Store.** Come back once Trackd is shipped and on a custom domain (e.g., `trackd.app`).
 
-### Blurb to copy-paste
+### Worth revisiting post-launch
 
-> Trackd is a privacy-first Chrome extension that discovers all your subscriptions from Gmail receipts — no bank login, no Plaid, no cloud account. Free tier tracks 10 subscriptions with monthly scans; Pro ($3.99/mo) adds unlimited tracking, weekly scans, CSV export, and cancellation guides.
-
-### Details
-
-| Field | Value |
-|---|---|
-| Product name | Trackd |
-| Website | `https://trackd-deanware.netlify.app` |
-| Category | Subscription Management / Personal Finance |
-| Pricing | Free + $3.99/mo Pro |
-| Platforms | Chrome Browser Extension |
-
-### Pro tip from SaaSHub
-
-Once you've verified Trackd on SaaSHub, their **"Submit" tool** gives you a curated list of **108 other directories** (Product Hunt, G2, Capterra, SourceForge etc.) — you can submit to all of them from one page. That's a huge shortcut.
+**Registration:** https://www.saashub.com/register  
+Once you have a live product on a custom domain, their **"Submit" tool** gives you access to **108 other directories** (Product Hunt, G2, Capterra, SourceForge etc.) from one page — that's the real value.
 
 ---
 
