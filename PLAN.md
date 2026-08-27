@@ -265,7 +265,7 @@ Trackd (proposed) ───── $3.99/mo  ← we are here
 
 ### Phase 1: Social search & reply (now — this week)
 
-The highest-leverage action right now is replying to people already expressing pain. No account-age gate, no filter issues.
+⚠ **Lesson learned:** new accounts hit platform anti-spam defenses within hours. Both X and YouTube flagged the account — links suppressed on X, comments auto-removed on YT. Phase 1 was partially blocked. This is documented in §10 as a validated risk.
 
 **Action 1** — Twitter/X search & reply (~20 min)
 
@@ -334,9 +334,9 @@ Post format: "Question for the group — does anyone use a subscription tracker?
 
 | Metric | Target | Current | Notes |
 |---|---|---|---|
-| Twitter/X engagements (replies to pain posts) | 10+ | Done 2026-08-24/25, awaiting engagement data | Replies posted; check impressions + whether links carried UTM tags. |
-| Indie Hackers discussion engagement | 10+ replies | 2 likes, 1 substantive comment (2026-08-25) | First comment flags Gmail-trust as probable main conversion barrier — matches hypothesis #3. Reply + keep thread alive. |
-| Waitlist signups | 20+ | 0 | Landing page + Netlify Forms live. |
+| Twitter/X engagements (replies to pain posts) | 10+ | ❌ Account flagged for suspicious behavior | Replies posted but account flagged before measurable engagement. Confirms new-account outreach risk — documented §10. |
+| Indie Hackers discussion engagement | 10+ replies | 2 likes, 1 substantive comment (2026-08-25) | First comment flags Gmail-trust as probable main conversion barrier — matches hypothesis #3. Additional comment turned out to be consultant lead-gen. |
+| Waitlist signups | 20+ | 0 | Landing page + Netlify Forms live. Umami analytics + UTM attribution now wired. Quora + directories next — these are filter-free channels. |
 | People saying "I'd pay $X/mo" | 5+ | 0 | Not yet asked. |
 | People who actually joined a beta | 5+ | 0 | No beta to join yet. |
 | Facebook group comments / DMs | 5+ conversations | 0 | Join and engage in personal finance groups. |
@@ -346,7 +346,7 @@ Post format: "Question for the group — does anyone use a subscription tracker?
 - **2–3 targets hit** → keep validating, refine messaging
 - **< 2 targets hit** → seriously consider switching to Idea #3 (freelance client communication trail)
 
-**Current assessment:** Phase 1 (Now) executed on Twitter/X and YouTube; Bluesky skipped by choice. Scorecard now tracks 6 targets. Initial Reddit approach was blocked by new-account posting restrictions.
+**Current assessment:** 2 of 6 targets showing partial life (IH engagement + X/YT execution). Both social channels blocked mid-Phase 1 — new-account outreach risk confirmed. Pivoting to filter-free Phase 2 channels (Quora, directories, Facebook Groups). Scorecard decision threshold unchanged: 4+ = build, 2–3 = keep validating, <2 = pivot.
 
 ---
 
@@ -400,7 +400,7 @@ Post format: "Question for the group — does anyone use a subscription tracker?
 | Low conversion from free to paid | Medium | High | Free tier limits discovered. SaaS Sub Tracker has 5 ratings vs Rocket Money's 200K+. Need strong paid hook. |
 | Gmail API policy changes | Low | Critical | Google could restrict email scanning. Currently allowed with user consent. Monitor policy changes. |
 | Churn (users clean subs then leave) | Medium | Medium | Subscription fatigue applies to tracking tool itself. Mitigate with ongoing alerts + new sub detection. |
-| Landing page gets 0 signups | Medium | High | Currently 0 signups. Need to drive targeted traffic. If <20 after 1 week, reconsider messaging or idea. |
+| New-account social platform flags block outreach | **High** | **High** | Confirmed: X flagged account, YouTube auto-removed comments. Both channels blocked within hours. Mitigation: use filter-free channels (Quora, directories, Indie Hackers) for validation; warm new accounts with normal activity before link outreach; reserve social blasts for when the product is live and accounts have history. |
 
 ---
 

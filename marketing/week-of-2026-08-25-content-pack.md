@@ -159,5 +159,9 @@ This is how we'll tell "nobody clicked" apart from "clicked but didn't convert" 
 | | Quora | | | |
 | 2026-08-25 | IH | validation thread ("roast my funnel") | ✅ Posted | n/a |
 | 2026-08-26 | IH | 2 likes, 1 comment (aryan_sinh: Gmail-trust = main barrier?) | ✅ Engaged | n/a |
+| 2026-08-26 | IH | aryan_sinh asked to continue via email → trackd@deanware.com | ✅ Email shared publicly | n/a |
+| 2026-08-26 | IH | aryan_sinh email = Beryxa consulting sales pitch (beryxa.com) — NOT user signal | ⚠️ Declined politely | n/a |
+| 2026-08-26 | YT | 2nd comment (no links, mentions profile) also auto-removed | ❌ Blocked | confirmed invisible |
+|  |  | DIAGNOSIS: YT spam flag on account (link history + "link in my profile" = known spam phrase). Pause YT outreach 1–2 wks, warm account with natural activity, then retry plain-value comments |  |
 | | AltTo | | | |
 | | SaaSHub | | | |
