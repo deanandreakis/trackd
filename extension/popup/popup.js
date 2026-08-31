@@ -17,6 +17,11 @@ const reviewCount = $('review-count');
 const totalAmount = $('total-amount');
 const trialsBar = $('trials-bar');
 const trialsCount = $('trials-count');
+const modal = $('modal');
+const modalTitle = $('modal-title');
+const modalFields = $('modal-fields');
+const modalSave = $('modal-save');
+const modalCancel = $('modal-cancel');
 
 // --- Helpers ---
 
@@ -54,6 +59,64 @@ function formatFrequency(freq) {
 function isConfirmed(sub) {
   return sub && sub.status !== 'pending';
 }
+
+// --- Reusable Modal ---
+
+let modalOnSave = null;
+
+function openModal({ title, fields, onSave }) {
+  modalTitle.textContent = title;
+  modalFields.innerHTML = fields.map(f => `
+    <div class="modal-field">
+      <label for="modal-${f.id}">${f.label}</label>
+      <input
+        id="modal-${f.id}"
+        type="${f.type || 'text'}"
+        placeholder="${f.placeholder || ''}"
+        ${f.required ? 'required' : ''}
+      />
+    </div>
+  `).join('');
+
+  modalOnSave = () => {
+    const values = {};
+    let valid = true;
+    for (const f of fields) {
+      const input = document.getElementById(`modal-${f.id}`);
+      const raw = input.value.trim();
+      if (f.required && !raw) {
+        input.focus();
+        input.style.borderColor = 'var(--red)';
+        valid = false;
+        break;
+      }
+      values[f.id] = f.type === 'number' ? (raw ? parseFloat(raw) : null) : raw;
+    }
+    if (!valid) return;
+    closeModal();
+    onSave(values);
+  };
+
+  modal.classList.remove('hidden');
+  const first = modalFields.querySelector('input');
+  if (first) first.focus();
+}
+
+function closeModal() {
+  modalOnSave = null;
+  modal.classList.add('hidden');
+}
+
+modalSave.addEventListener('click', () => {
+  if (modalOnSave) modalOnSave();
+});
+
+modalCancel.addEventListener('click', closeModal);
+
+modal.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && modalOnSave) modalOnSave();
+  if (e.key === 'Escape') closeModal();
+});
 
 function getMonthlyTotal(subs) {
   // Only confirmed subscriptions count toward the total.
@@ -139,10 +202,17 @@ async function refreshAndRender() {
  * Confirm a review candidate as a real subscription (adds it to the total).
  */
 async function confirmCandidate(id) {
-  const priceStr = prompt('Monthly price (or leave blank to use detected amount):');
-  const price = priceStr ? parseFloat(priceStr) : null;
-  await sendMsg('confirmSubscription', { id, price });
-  await refreshAndRender();
+  openModal({
+    title: 'Confirm subscription',
+    fields: [
+      { id: 'price', label: 'Monthly price (leave blank to use detected)', type: 'number', placeholder: '0.00' },
+    ],
+    onSave: async (values) => {
+      const price = values.price;
+      await sendMsg('confirmSubscription', { id, price });
+      await refreshAndRender();
+    },
+  });
 }
 
 /**
@@ -190,10 +260,16 @@ function renderDashboard(subs) {
  * Prompt for and set a monthly price on an existing confirmed subscription.
  */
 async function setPrice(id) {
-  const priceStr = prompt('Monthly price (e.g., 9.99):');
-  if (!priceStr) return;
-  const result = await sendMsg('updateSubscriptionPrice', { id, price: priceStr });
-  if (result && !result.error) await refreshAndRender();
+  openModal({
+    title: 'Add monthly price',
+    fields: [
+      { id: 'price', label: 'Monthly price', type: 'number', placeholder: '9.99', required: true },
+    ],
+    onSave: async (values) => {
+      const result = await sendMsg('updateSubscriptionPrice', { id, price: values.price });
+      if (result && !result.error) await refreshAndRender();
+    },
+  });
 }
 
 // --- Main List Price Action Delegation ---
@@ -260,15 +336,19 @@ scanBtn.addEventListener('click', async () => {
 // --- Add Manual ---
 
 addBtn.addEventListener('click', () => {
-  const name = prompt('Subscription name:');
-  if (!name) return;
-
-  const priceStr = prompt('Monthly price (e.g., 9.99) or leave blank:');
-  const price = priceStr ? parseFloat(priceStr) : null;
-
-  sendMsg('addManual', {
-    subscription: { name, price, frequency: 'monthly', type: 'other', status: 'active' }
-  }).then(refreshAndRender);
+  openModal({
+    title: 'Add subscription',
+    fields: [
+      { id: 'name', label: 'Subscription name', placeholder: 'e.g. Netflix', required: true },
+      { id: 'price', label: 'Monthly price (optional)', type: 'number', placeholder: '0.00' },
+    ],
+    onSave: async (values) => {
+      await sendMsg('addManual', {
+        subscription: { name: values.name, price: values.price, frequency: 'monthly', type: 'other', status: 'active' }
+      });
+      await refreshAndRender();
+    },
+  });
 });
 
 // --- Initialization ---
