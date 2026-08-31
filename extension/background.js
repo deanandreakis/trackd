@@ -100,13 +100,8 @@ const KNOWN_MERCHANTS = [
 const RECEIPT_KEYWORDS = [
   'receipt', 'invoice', 'subscription', 'renewal', 'payment',
   'your order', 'order confirmation', 'billing', 'charged',
-  'free trial', 'trial ended', 'trial converting', 'your plan',
-  'monthly', 'annual', 'yearly', 'membership',
-  'your receipt', 'payment received', 'thank you for your purchase',
-  'order summary', 'your invoice', 'payment confirmation',
-  'auto-renew', 'automatic payment', 'recurring payment',
-  'successfully charged', 'statement', 'purchase receipt',
-  'you paid', 'total charged',
+  'your receipt', 'payment confirmation', 'purchase',
+  'you paid', 'statement', 'auto-renew',
 ];
 
 function isBillingEmail(subject, from) {
@@ -359,32 +354,60 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 // --- Main Scanning Logic ---
 
 async function scanInbox(token) {
-  // Search for billing-related emails from the last 12 months
-  const oneYearAgo = new Date();
-  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-  const year = oneYearAgo.getFullYear();
-  const month = String(oneYearAgo.getMonth() + 1).padStart(2, '0');
-  const day = String(oneYearAgo.getDate()).padStart(2, '0');
-  const query = `after:${year}/${month}/${day} (${RECEIPT_KEYWORDS.join(' OR ')})`;
+  // Try multiple search strategies to find billing emails
+  const searchStrategies = [
+    `newer_than:1y (receipt OR invoice OR subscription OR renewal OR payment)`,
+    `newer_than:1y receipt`,
+    `newer_than:1y subscription`,
+    `newer_than:1y invoice`,
+    `newer_than:1y "your receipt"`,
+    `newer_than:1y "order confirmation"`,
+    `newer_than:1y billing`,
+  ];
   
-  // Collect ALL message IDs through pagination
+  // Collect ALL message IDs from all strategies (deduplicated)
+  const seenIds = new Set();
   let allMessageIds = [];
-  let nextPageToken = null;
   
-  do {
-    const params = { q: query, maxResults: 500 };
-    if (nextPageToken) params.pageToken = nextPageToken;
+  for (const query of searchStrategies) {
+    console.log(`[Trackd] Searching: ${query}`);
+    let nextPageToken = null;
     
-    const listData = await gmailFetch(token, 'messages', params);
-    
-    if (listData.messages) {
-      allMessageIds = allMessageIds.concat(listData.messages);
+    try {
+      do {
+        const params = { q: query, maxResults: 500 };
+        if (nextPageToken) params.pageToken = nextPageToken;
+        
+        const listData = await gmailFetch(token, 'messages', params);
+        
+        if (listData.messages) {
+          for (const msg of listData.messages) {
+            if (!seenIds.has(msg.id)) {
+              seenIds.add(msg.id);
+              allMessageIds.push(msg);
+            }
+          }
+        }
+        
+        nextPageToken = listData.nextPageToken || null;
+      } while (nextPageToken);
+    } catch (e) {
+      console.log(`[Trackd] Search query failed: ${query} - ${e.message}`);
     }
-    
-    nextPageToken = listData.nextPageToken || null;
-  } while (nextPageToken);
+  }
   
   if (allMessageIds.length === 0) {
+    console.log(`[Trackd] Keyword search found nothing. Trying fallback - fetch recent 50 messages...`);
+    try {
+      const fallback = await gmailFetch(token, 'messages', { maxResults: 50 });
+      if (fallback.messages && fallback.messages.length > 0) {
+        console.log(`[Trackd] Fallback found ${fallback.messages.length} messages. API is working.`);
+        // Return empty but with a flag so we know the API works
+        return { subscriptions: [], trials: [], _fallbackCount: fallback.messages.length };
+      }
+    } catch (e) {
+      console.log(`[Trackd] Fallback also failed: ${e.message}`);
+    }
     return { subscriptions: [], trials: [] };
   }
   
