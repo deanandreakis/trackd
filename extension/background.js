@@ -126,6 +126,83 @@ function detectMerchant(subject, from) {
   return null;
 }
 
+// --- Intent Classification ---
+//
+// Intent buckets (priority-ordered). Each message falls into exactly one bucket.
+//   ACTIVE     -> confident recurring subscription => include in monthly total.
+//   CANCELLED  -> the subscription ended/canceled => present for review, not active.
+//   TRIAL      -> free-trial email (handled by the independent trial pipeline).
+//   CANDIDATE  -> possible subscription, low confidence => needs review.
+//   DROP       -> clearly not a subscription (one-time order, payment failure, noise).
+
+const INTENT_ACTIVE = 'active';
+const INTENT_CANDIDATE = 'candidate';
+const INTENT_DROP = 'drop';
+
+// Strong one-time purchase / shipping / delivery language. These are the most
+// common false positives: "your order has shipped", "delivery update",
+// "track your package". Even from a known merchant, a shipping notice is not
+// a recurring subscription.
+const ONE_TIME_ORDER_RE = /(?:order (?:confirmation|confirmed|placed|is|has)|your order|shipping|delivery|delivered|track your|package|shipment|dispatch|checkout)/i;
+
+// Payment-failure / method-update language. The user is not being charged, so
+// this is not evidence of an active subscription.
+const PAYMENT_FAILURE_RE = /(?:payment (?:failed|declined)|payment method|update (?:your )?(?:billing|payment)|couldn't? (?:process|verify) (?:your )?payment|verify (?:your )?billing|your card (?:was )?declined|re.?enter (?:your )?payment|billing details)/i;
+
+// Strong subscription-billing language that confirms an active recurring plan.
+const SUBSCRIPTION_ACTIVE_RE = /(?:will be (?:renewed|recurring)|auto-?renew|has been (?:renewed|charged)|next (?:billing|payment)|your (?:subscription|membership|plan).*renew|recurring|charged (?:you|for)|you (?:have been|were) charged|subscription (?:updated|confirmed)|plan (?:confirmed|activated)|billed (?:monthly|annually|yearly|weekly))/i;
+
+// Newsletter / promotional / noise language -> never a subscription.
+const NOISE_RE = /(?:newsletter|unsubscribe|weekly (?:news|digest)|monthly digest|marketing|promotional|webinar|blog post|you might like|check out|flash sale|limited time|don't miss|sale ends|100% free|get started today|sign up now)/i;
+
+/**
+ * Normalize an email's subject + snippet for matching: collapse whitespace and
+ * drop HTML tags (receipt snippets can contain inline markup).
+ */
+function normalizeEmailText(subject, snippet) {
+  const raw = `${subject || ''} ${snippet || ''}`;
+  return raw
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Classify an email into an intent bucket using priority-ordered heuristics.
+ * Subject line is weighted highest because most transactional emails put the
+ * signal in the subject.
+ */
+function classifyEmail(subject, from, snippet) {
+  const text = normalizeEmailText(subject, snippet);
+  const subjectText = (subject || '').toLowerCase();
+
+  // Strong recurring-subscription confirmation outweighs any promo/noise text
+  // that a real renewal receipt may embed (e.g. "don't miss our new features").
+  // Pure promotional emails (which just say "renew/sign up") do not contain
+  // auto-renew / recurring / "has been charged" language, so they won't match.
+  if (SUBSCRIPTION_ACTIVE_RE.test(text)) return INTENT_ACTIVE;
+
+  // 1) Promotional / noise -> never a subscription.
+  if (NOISE_RE.test(text)) return INTENT_DROP;
+
+  // 2) One-time order / shipping / delivery -> drop even for known merchants.
+  if (ONE_TIME_ORDER_RE.test(subjectText) || (
+    ONE_TIME_ORDER_RE.test(text) && !SUBSCRIPTION_ACTIVE_RE.test(text)
+  )) return INTENT_DROP;
+
+  // 3) Payment failure -> drop.
+  if (PAYMENT_FAILURE_RE.test(text)) return INTENT_DROP;
+
+  // 4) Unknown sender with billing language, no strong signal -> candidate.
+  if (isBillingEmail(subject, from)) return INTENT_CANDIDATE;
+
+  // 5) Nothing pointing at a subscription -> drop.
+  return INTENT_DROP;
+}
+
 function extractPrice(text) {
   // Only accept amounts that appear in a billing context. A bare dollar amount
   // can be an unrelated amount from an email footer, statement, or marketing copy.
@@ -548,29 +625,37 @@ for (let i = 0; i < allMessageIds.length; i += batchSize) {
       }
       
       // --- Subscription Detection ---
-      // Only create a subscription when a known merchant is identified.
-      // Generic billing emails are intentionally ignored to avoid false positives.
-      const subscription = buildSubscription(
-        detail,
-        { subject, from, date },
-        snippet,
-      );
-      const isEnded = detectMerchant(subject, from) && indicatesEndedSubscription(subject, snippet);
+      // Priority-ordered intent routing. `ended` is checked first because a
+      // cancellation notice from a known merchant must never appear as active.
+      const intent = classifyEmail(subject, from, snippet);
+      const merchant = detectMerchant(subject, from);
+      const isEnded = merchant && indicatesEndedSubscription(subject, snippet);
 
       if (isEnded) {
         // Canceled/expired known merchant -> review candidate, not active.
         subscriptionResults.push(buildCandidate(detail, { subject, from, date }, snippet));
-        console.log(`[Trackd] → Ended/canceled (for review): \"${deriveSenderName(from)}\" from="${from}" subject="${subject.substring(0, 50)}"`);
-      } else if (subscription) {
-        subscriptionResults.push(subscription);
-
-        if (subscriptionResults.length <= 5) {
-          console.log(`[Trackd] ✓ Found: "${subscription.name}" from="${from}" subject="${subject.substring(0, 50)}" price=${subscription.price}`);
+        console.log(`[Trackd] → Ended/canceled (for review): "${deriveSenderName(from)}" from="${from}" subject="${subject.substring(0, 50)}"`);
+      } else if (intent === INTENT_DROP) {
+        // Clearly not a subscription (noise, one-time order, payment failure).
+        // Log at trace level only; do not add anything.
+        console.log(`[Trackd] · Dropped: "${deriveSenderName(from)}" intent=drop subject="${subject.substring(0, 50)}"`);
+      } else if (merchant) {
+        // Known merchant that is not cancelled/ended -> confirmed active.
+        const subscription = buildSubscription(detail, { subject, from, date }, snippet);
+        if (subscription) {
+          subscriptionResults.push(subscription);
+          if (subscriptionResults.length <= 5) {
+            console.log(`[Trackd] ✓ Found: "${subscription.name}" from="${from}" subject="${subject.substring(0, 50)}" price=${subscription.price}`);
+          }
         }
-      } else if (isBillingEmail(subject, from)) {
-        // Unknown sender that is clearly a billing email -> offer for review
-        // instead of silently dropping it. It is not added to the monthly total.
-        subscriptionResults.push(buildCandidate(detail, { subject, from, date }, snippet));
+      } else {
+        // Unknown sender. Strong recurring signal or billing language -> review
+        // candidate. It is not added to the total until the user confirms.
+        if (intent === INTENT_ACTIVE || isBillingEmail(subject, from)) {
+          subscriptionResults.push(buildCandidate(detail, { subject, from, date }, snippet));
+        } else {
+          console.log(`[Trackd] · Ignored (no billing intent): "${deriveSenderName(from)}" subject="${subject.substring(0, 50)}"`);
+        }
       }
 
       // --- Free Trial Detection ---
