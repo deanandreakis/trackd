@@ -267,7 +267,10 @@ function renderDashboard(subs) {
       <div class="right">
         <div class="amount">${sub.price !== null && sub.price !== undefined ? `${formatPrice(sub.price)}${formatFrequency(sub.frequency)}` : '<button class="btn-small set-price-btn" title="Set monthly price">Add price</button>'}</div>
         <span class="meta">${sub.status || 'active'}</span>
-        ${sub.source === 'gmail' ? '<button class="btn-small view-email-btn" title="Open original email">View email</button>' : ''}
+        <div class="item-actions">
+          ${sub.source === 'gmail' ? '<button class="btn-small view-email-btn" title="Open original email">View email</button>' : ''}
+          <button class="btn-small remove-btn" title="Remove from list">✕</button>
+        </div>
       </div>
     </div>
   `).join('');
@@ -294,6 +297,25 @@ async function setPrice(id) {
   });
 }
 
+/**
+ * Confirm and remove a subscription from the list (e.g. user determined it
+ * does not belong / was canceled).
+ */
+function confirmRemove(id) {
+  openModal({
+    title: 'Remove subscription?',
+    fields: [
+      { id: 'confirm-remove', label: 'Type REMOVE to delete this item', placeholder: 'REMOVE', required: true },
+    ],
+    onSave: async (values) => {
+      const typed = String(values['confirm-remove'] || '').toUpperCase();
+      if (typed !== 'REMOVE') return; // mismatch -> keep modal open for correction
+      await sendMsg('removeSubscription', { id });
+      await refreshAndRender();
+    },
+  });
+}
+
 // --- Main List Price Action Delegation ---
 
 subList.addEventListener('click', (e) => {
@@ -308,6 +330,12 @@ subList.addEventListener('click', (e) => {
     const item = viewBtn.closest('.sub-item');
     const sub = (subsCache || []).find(s => s.id === item.dataset.id);
     if (sub) openEmail(sub);
+    return;
+  }
+  const removeBtn = e.target.closest('.remove-btn');
+  if (removeBtn) {
+    const item = removeBtn.closest('.sub-item');
+    if (item) confirmRemove(item.dataset.id);
   }
 });
 

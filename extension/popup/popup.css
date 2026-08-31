@@ -229,6 +229,27 @@ h2 { font-size: 16px; font-weight: 600; }
   cursor: pointer;
 }
 .view-email-btn:hover { background: rgba(37, 99, 235, 0.08); }
+.item-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+.remove-btn {
+  color: var(--red);
+  border: 1px solid var(--border);
+  background: none;
+  border-radius: 6px;
+  width: 22px;
+  height: 22px;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.remove-btn:hover { background: rgba(220, 38, 38, 0.08); }
 .set-price-btn {
   background: var(--accent);
   color: #fff;
