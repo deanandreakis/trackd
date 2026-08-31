@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trackd</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div id="app" class="popup-container">
+    <!-- Auth State -->
+    <div id="auth-state" class="state">
+      <div class="logo">🔍</div>
+      <h1>Trackd</h1>
+      <p class="subtitle">Find forgotten subscriptions</p>
+      <button id="auth-btn" class="btn-primary">Connect Gmail</button>
+      <p class="privacy-note">🔒 Read-only access. No bank data. Your email never leaves your browser.</p>
+    </div>
+
+    <!-- Scanning State -->
+    <div id="scanning-state" class="state hidden">
+      <div class="logo spinning">🔍</div>
+      <h2>Scanning your inbox...</h2>
+      <p class="subtitle">Looking for receipts, renewals, and subscriptions</p>
+      <div class="progress-bar"><div class="progress-fill"></div></div>
+    </div>
+
+    <!-- Dashboard State -->
+    <div id="dashboard-state" class="state hidden">
+      <div class="header">
+        <h1>Trackd</h1>
+        <div class="header-actions">
+          <button id="scan-btn" class="btn-small" title="Re-scan inbox">🔄</button>
+          <button id="add-btn" class="btn-small" title="Add manually">+</button>
+        </div>
+      </div>
+      <div class="summary">
+        <span class="total-label">Monthly total</span>
+        <span class="total-amount" id="total-amount">$0.00</span>
+      </div>
+      <div id="sub-list" class="sub-list"></div>
+      <div class="footer-actions">
+        <button id="settings-btn" class="btn-text">Settings</button>
+      </div>
+    </div>
+  </div>
+  <script src="popup.js" type="module"></script>
+</body>
+</html>
