@@ -418,7 +418,10 @@ async function scanInbox(token) {
   const trialResults = [];
   const batchSize = 10;
   
-  for (let i = 0; i < allMessageIds.length; i += batchSize) {
+  // Track first-email debug
+let _loggedHeaders = false;
+
+for (let i = 0; i < allMessageIds.length; i += batchSize) {
     const batch = allMessageIds.slice(i, i + batchSize);
     
     let details;
@@ -444,6 +447,14 @@ async function scanInbox(token) {
       const date = headers['Date'] || '';
       const snippet = detail.snippet || '';
       
+      // Debug: log first email's headers
+      if (i === 0 && !_loggedHeaders) {
+        _loggedHeaders = true;
+        const headerNames = (detail.payload?.headers || []).map(h => h.name);
+        console.log(`[Trackd] First email headers: ${headerNames.join(', ')}`);
+        console.log(`[Trackd] Subject="${subject}" From="${from}" snippet="${snippet.substring(0,100)}"`);
+      }
+      
       // --- Subscription Detection ---
       // Gmail search already found billing emails, detect merchant directly
       const merchant = detectMerchant(subject, from);
@@ -454,16 +465,18 @@ async function scanInbox(token) {
         subType = merchant.type;
       } else {
         // Fallback: extract company name from "From" header
-        // "Netflix <info@netflix.com>" -> "Netflix"
-        // "info@netflix.com" -> "Netflix" (via email domain)
         let fromClean = from.replace(/<.*>/, '').trim();
         if (!fromClean) {
-          // No display name, extract from email address
+          // No display name, extract from email address domain
           const emailMatch = from.match(/@([^.]+)/);
           fromClean = emailMatch ? emailMatch[1] : from;
         }
         fromClean = fromClean.replace(/@.*$/, '').trim();
         subName = fromClean.replace(/\b\w/g, c => c.toUpperCase()).substring(0, 40);
+        // Last resort: if still empty, use "Unknown Service"
+        if (!subName || subName.trim() === '') {
+          subName = 'Unknown Service';
+        }
         subType = 'other';
       }
       
