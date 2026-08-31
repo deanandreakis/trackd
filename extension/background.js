@@ -445,43 +445,46 @@ async function scanInbox(token) {
       const snippet = detail.snippet || '';
       
       // --- Subscription Detection ---
-      if (isBillingEmail(subject, from)) {
-        const merchant = detectMerchant(subject, from);
-        let subName, subType;
-        
-        if (merchant) {
-          subName = merchant.name;
-          subType = merchant.type;
-        } else {
-          // Fallback: extract company name from "From" header
-          // e.g. "Netflix <info@netflix.com>" -> "Netflix"
-          // e.g. "spotify@mail.spotify.com" -> "Spotify"
-          const fromName = from.replace(/<.*>/, '').trim() || from;
-          subName = fromName.replace(/@.*$/, '').trim();
-          // Capitalize nicely
-          subName = subName.replace(/\b\w/g, c => c.toUpperCase()).substring(0, 40);
-          subType = 'other';
-          
-          // Log first 10 unmatched emails for debugging
-          if (i < 100) {
-            console.log(`[Trackd] Unmatched billing email: from="${from}" subject="${subject.substring(0,60)}" → extracted name="${subName}"`);
-          }
+      // Gmail search already found billing emails, detect merchant directly
+      const merchant = detectMerchant(subject, from);
+      let subName, subType;
+      
+      if (merchant) {
+        subName = merchant.name;
+        subType = merchant.type;
+      } else {
+        // Fallback: extract company name from "From" header
+        // "Netflix <info@netflix.com>" -> "Netflix"
+        // "info@netflix.com" -> "Netflix" (via email domain)
+        let fromClean = from.replace(/<.*>/, '').trim();
+        if (!fromClean) {
+          // No display name, extract from email address
+          const emailMatch = from.match(/@([^.]+)/);
+          fromClean = emailMatch ? emailMatch[1] : from;
         }
-        
-        const price = extractPrice(snippet);
-        const frequency = detectFrequency(snippet);
+        fromClean = fromClean.replace(/@.*$/, '').trim();
+        subName = fromClean.replace(/\b\w/g, c => c.toUpperCase()).substring(0, 40);
+        subType = 'other';
+      }
+      
+      const price = extractPrice(snippet);
+      const frequency = detectFrequency(snippet);
 
-        subscriptionResults.push({
-          id: detail.id,
-          name: subName,
-          type: subType,
-          price: price || null,
-          frequency,
-          renewalDate: date,
-          source: 'gmail',
-          detected: new Date().toISOString(),
-          status: 'active',
-        });
+      subscriptionResults.push({
+        id: detail.id,
+        name: subName,
+        type: subType,
+        price: price || null,
+        frequency,
+        renewalDate: date,
+        source: 'gmail',
+        detected: new Date().toISOString(),
+        status: 'active',
+      });
+      
+      // Log first 5 detected
+      if (subscriptionResults.length <= 5) {
+        console.log(`[Trackd] ✓ Found: "${subName}" from="${from}" subject="${subject.substring(0,50)}" price=${price}`);
       }
 
       // --- Free Trial Detection ---
