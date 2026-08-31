@@ -268,7 +268,7 @@ function renderDashboard(subs) {
         <div class="amount">${sub.price !== null && sub.price !== undefined ? `${formatPrice(sub.price)}${formatFrequency(sub.frequency)}` : '<button class="btn-small set-price-btn" title="Set monthly price">Add price</button>'}</div>
         <span class="meta">${sub.status || 'active'}</span>
         <div class="item-actions">
-          ${sub.source === 'gmail' ? '<button class="btn-small view-email-btn" title="Open original email">View email</button>' : ''}
+          ${sub.source === 'gmail' ? '<button class="btn-small view-email-btn" title="Open original email">📧</button>' : ''}
           <button class="btn-small remove-btn" title="Remove from list">✕</button>
         </div>
       </div>

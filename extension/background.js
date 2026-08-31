@@ -156,6 +156,10 @@ function buildSubscription(detail, headers, snippet) {
   const merchant = detectMerchant(headers.subject, headers.from);
   if (!merchant) return null;
 
+  // Emails that indicate the subscription was ended/canceled should not appear
+  // as an active subscription in the main list. Route them to the review list.
+  if (indicatesEndedSubscription(headers.subject, snippet)) return null;
+
   const price = extractPrice(snippet);
   return {
     id: detail.id,
@@ -168,6 +172,24 @@ function buildSubscription(detail, headers, snippet) {
     detected: new Date().toISOString(),
     status: 'active',
   };
+}
+
+/**
+ * Heuristic: detect email language indicating a subscription was canceled or
+ * ended, so it is not presented as an active subscription.
+ */
+function indicatesEndedSubscription(subject, snippet) {
+  const text = `${subject} ${snippet}`.toLowerCase();
+  // Matches on the subject/snippet for clear signal that the plan is over.
+  return (
+    /\b(?:canceled|cancelled)\b/.test(text) ||
+    /\b(?:subscription|membership|plan|trial)\s+(?:has )?(?:been )?(?:canceled|cancelled|ended|expired)\b/i.test(text) ||
+    /\bsubscription (?:ended|expired|canceled|cancelled)\b/i.test(text) ||
+    /\b(?:sorry to see you go|you've been refunded|reactivate (?:your|the) (?:subscription|account|plan))\b/i.test(text) ||
+    /\b(?:your subscription (?:is|has) (?:no longer active|being canceled|canceled))\b/i.test(text) ||
+    /\b(?:on\s+\d+\s*\/\s*\d+\s*(?:\/\s*\d+)?\s*(?:your\s+)?subscription\s+(?:was|canceled|cancelled))\b/i.test(text) ||
+    /\b(?:obviously we don't want this\b|look forward to having you\s+(?:back|again))\b/i.test(text)
+  );
 }
 
 /**
@@ -533,8 +555,13 @@ for (let i = 0; i < allMessageIds.length; i += batchSize) {
         { subject, from, date },
         snippet,
       );
+      const isEnded = detectMerchant(subject, from) && indicatesEndedSubscription(subject, snippet);
 
-      if (subscription) {
+      if (isEnded) {
+        // Canceled/expired known merchant -> review candidate, not active.
+        subscriptionResults.push(buildCandidate(detail, { subject, from, date }, snippet));
+        console.log(`[Trackd] → Ended/canceled (for review): \"${deriveSenderName(from)}\" from="${from}" subject="${subject.substring(0, 50)}"`);
+      } else if (subscription) {
         subscriptionResults.push(subscription);
 
         if (subscriptionResults.length <= 5) {
