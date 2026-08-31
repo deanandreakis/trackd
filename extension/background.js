@@ -367,23 +367,36 @@ async function scanInbox(token) {
   const day = String(oneYearAgo.getDate()).padStart(2, '0');
   const query = `after:${year}/${month}/${day} (${RECEIPT_KEYWORDS.join(' OR ')})`;
   
-  // Fetch message list
-  const listData = await gmailFetch(token, 'messages', {
-    q: query,
-    maxResults: 500,
-  });
+  // Collect ALL message IDs through pagination
+  let allMessageIds = [];
+  let nextPageToken = null;
   
-  if (!listData.messages || listData.messages.length === 0) {
+  do {
+    const params = { q: query, maxResults: 500 };
+    if (nextPageToken) params.pageToken = nextPageToken;
+    
+    const listData = await gmailFetch(token, 'messages', params);
+    
+    if (listData.messages) {
+      allMessageIds = allMessageIds.concat(listData.messages);
+    }
+    
+    nextPageToken = listData.nextPageToken || null;
+  } while (nextPageToken);
+  
+  if (allMessageIds.length === 0) {
     return { subscriptions: [], trials: [] };
   }
+  
+  console.log(`[Trackd] Found ${allMessageIds.length} billing-related emails, processing...`);
   
   // Fetch details for each message (batch of 10 at a time to avoid rate limits)
   const subscriptionResults = [];
   const trialResults = [];
   const batchSize = 10;
   
-  for (let i = 0; i < listData.messages.length; i += batchSize) {
-    const batch = listData.messages.slice(i, i + batchSize);
+  for (let i = 0; i < allMessageIds.length; i += batchSize) {
+    const batch = allMessageIds.slice(i, i + batchSize);
     const details = await Promise.all(
       batch.map(msg => gmailFetch(token, `messages/${msg.id}`, { format: 'metadata', metadataHeaders: ['From', 'Subject', 'Date'] }))
     );
