@@ -102,6 +102,11 @@ const RECEIPT_KEYWORDS = [
   'your order', 'order confirmation', 'billing', 'charged',
   'free trial', 'trial ended', 'trial converting', 'your plan',
   'monthly', 'annual', 'yearly', 'membership',
+  'your receipt', 'payment received', 'thank you for your purchase',
+  'order summary', 'your invoice', 'payment confirmation',
+  'auto-renew', 'automatic payment', 'recurring payment',
+  'successfully charged', 'statement', 'purchase receipt',
+  'you paid', 'total charged',
 ];
 
 function isBillingEmail(subject, from) {
@@ -357,12 +362,15 @@ async function scanInbox(token) {
   // Search for billing-related emails from the last 12 months
   const oneYearAgo = new Date();
   oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-  const query = `after:${oneYearAgo.getTime() / 1000 | 0} (${RECEIPT_KEYWORDS.join(' OR ')})`;
+  const year = oneYearAgo.getFullYear();
+  const month = String(oneYearAgo.getMonth() + 1).padStart(2, '0');
+  const day = String(oneYearAgo.getDate()).padStart(2, '0');
+  const query = `after:${year}/${month}/${day} (${RECEIPT_KEYWORDS.join(' OR ')})`;
   
   // Fetch message list
   const listData = await gmailFetch(token, 'messages', {
     q: query,
-    maxResults: 100,
+    maxResults: 500,
   });
   
   if (!listData.messages || listData.messages.length === 0) {
