@@ -174,7 +174,7 @@ function renderDashboard(subs) {
         <span class="meta">${sub.type || 'subscription'} · ${sub.source === 'manual' ? 'manual' : autoLabel(sub)}</span>
       </div>
       <div class="right">
-        <div class="amount">${formatPrice(sub.price)}${sub.price ? formatFrequency(sub.frequency) : ''}</div>
+        <div class="amount">${sub.price !== null && sub.price !== undefined ? `${formatPrice(sub.price)}${formatFrequency(sub.frequency)}` : '<button class="btn-small set-price-btn" title="Set monthly price">Add price</button>'}</div>
         <span class="meta">${sub.status || 'active'}</span>
       </div>
     </div>
@@ -185,6 +185,25 @@ function renderDashboard(subs) {
   // Also render trial alerts
   renderTrialAlerts();
 }
+
+/**
+ * Prompt for and set a monthly price on an existing confirmed subscription.
+ */
+async function setPrice(id) {
+  const priceStr = prompt('Monthly price (e.g., 9.99):');
+  if (!priceStr) return;
+  const result = await sendMsg('updateSubscriptionPrice', { id, price: priceStr });
+  if (result && !result.error) await refreshAndRender();
+}
+
+// --- Main List Price Action Delegation ---
+
+subList.addEventListener('click', (e) => {
+  const btn = e.target.closest('.set-price-btn');
+  if (!btn) return;
+  const item = btn.closest('.sub-item');
+  if (item) setPrice(item.dataset.id);
+});
 
 function autoLabel(sub) {
   return sub.status === 'active' ? 'auto-detected' : sub.status;

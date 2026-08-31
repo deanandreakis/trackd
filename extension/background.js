@@ -674,6 +674,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           sendResponse({ success: true, subscriptions: subs });
           break;
         }
+
+        case 'updateSubscriptionPrice': {
+          const subs = await loadSubscriptions();
+          const target = subs.find(s => s.id === request.id);
+          if (!target) {
+            sendResponse({ success: false, error: 'Subscription not found' });
+            break;
+          }
+          const price = Number(request.price);
+          if (isNaN(price) || price <= 0) {
+            sendResponse({ success: false, error: 'Invalid price' });
+            break;
+          }
+          target.price = price;
+          if (request.frequency) target.frequency = request.frequency;
+          await saveSubscriptions(subs);
+          sendResponse({ success: true, subscriptions: subs });
+          break;
+        }
         
         case 'clearAuth': {
           const subs = await loadSubscriptions();
