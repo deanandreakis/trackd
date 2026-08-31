@@ -23,6 +23,8 @@ const modalFields = $('modal-fields');
 const modalSave = $('modal-save');
 const modalCancel = $('modal-cancel');
 
+let subsCache = [];
+
 // --- Helpers ---
 
 function sendMsg(action, data = {}) {
@@ -58,6 +60,23 @@ function formatFrequency(freq) {
 
 function isConfirmed(sub) {
   return sub && sub.status !== 'pending';
+}
+
+/**
+ * Build a deep link into Gmail for a message ID (used by items detected from email).
+ * Manual items have no message ID and cannot be linked.
+ */
+function gmailMessageUrl(messageId) {
+  return `https://mail.google.com/mail/u/0/#all/${encodeURIComponent(messageId)}`;
+}
+
+function canOpenEmail(sub) {
+  return sub.source === 'gmail' && sub.id;
+}
+
+function openEmail(sub) {
+  if (!canOpenEmail(sub)) return;
+  chrome.tabs.create({ url: gmailMessageUrl(sub.id) });
 }
 
 // --- Reusable Modal ---
@@ -185,6 +204,7 @@ function renderReviewCandidates(subs) {
       <div class="right">
         <span class="meta">${formatPrice(sub.price)}</span>
         <div class="review-actions">
+          <button class="btn-small view-email-btn" title="Open original email">📧</button>
           <button class="btn-small confirm-btn" title="Confirm as subscription">✓</button>
           <button class="btn-small dismiss-btn" title="Dismiss">✕</button>
         </div>
@@ -226,6 +246,7 @@ async function dismissCandidate(id) {
 // --- Render Dashboard ---
 
 function renderDashboard(subs) {
+  subsCache = (subs || []);
   const confirmed = (subs || []).filter(isConfirmed);
   const total = getMonthlyTotal(subs);
   totalAmount.textContent = `$${total.toFixed(2)}`;
@@ -246,6 +267,7 @@ function renderDashboard(subs) {
       <div class="right">
         <div class="amount">${sub.price !== null && sub.price !== undefined ? `${formatPrice(sub.price)}${formatFrequency(sub.frequency)}` : '<button class="btn-small set-price-btn" title="Set monthly price">Add price</button>'}</div>
         <span class="meta">${sub.status || 'active'}</span>
+        ${sub.source === 'gmail' ? '<button class="btn-small view-email-btn" title="Open original email">View email</button>' : ''}
       </div>
     </div>
   `).join('');
@@ -276,9 +298,17 @@ async function setPrice(id) {
 
 subList.addEventListener('click', (e) => {
   const btn = e.target.closest('.set-price-btn');
-  if (!btn) return;
-  const item = btn.closest('.sub-item');
-  if (item) setPrice(item.dataset.id);
+  if (btn) {
+    const item = btn.closest('.sub-item');
+    if (item) setPrice(item.dataset.id);
+    return;
+  }
+  const viewBtn = e.target.closest('.view-email-btn');
+  if (viewBtn) {
+    const item = viewBtn.closest('.sub-item');
+    const sub = (subsCache || []).find(s => s.id === item.dataset.id);
+    if (sub) openEmail(sub);
+  }
 });
 
 function autoLabel(sub) {
@@ -291,7 +321,10 @@ reviewList.addEventListener('click', (e) => {
   const item = e.target.closest('.review-item');
   if (!item) return;
   const id = item.dataset.id;
-  if (e.target.classList.contains('confirm-btn')) {
+  if (e.target.classList.contains('view-email-btn')) {
+    const sub = (subsCache || []).find(s => s.id === id);
+    if (sub) openEmail(sub);
+  } else if (e.target.classList.contains('confirm-btn')) {
     confirmCandidate(id);
   } else if (e.target.classList.contains('dismiss-btn')) {
     dismissCandidate(id);
