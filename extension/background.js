@@ -41,7 +41,14 @@ function clearAuthToken(token) {
 
 async function gmailFetch(token, path, params = {}) {
   const url = new URL(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`);
-  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  Object.entries(params).forEach(([k, v]) => {
+    if (Array.isArray(v)) {
+      // Gmail API expects multiple params for arrays (e.g. metadataHeaders=From&metadataHeaders=Subject)
+      v.forEach(val => url.searchParams.append(k, val));
+    } else {
+      url.searchParams.set(k, v);
+    }
+  });
   
   const res = await fetch(url.toString(), {
     headers: { Authorization: `Bearer ${token}` }
