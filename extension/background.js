@@ -420,9 +420,20 @@ async function scanInbox(token) {
   
   for (let i = 0; i < allMessageIds.length; i += batchSize) {
     const batch = allMessageIds.slice(i, i + batchSize);
-    const details = await Promise.all(
-      batch.map(msg => gmailFetch(token, `messages/${msg.id}`, { format: 'metadata', metadataHeaders: ['From', 'Subject', 'Date'] }))
-    );
+    
+    let details;
+    try {
+      details = await Promise.all(
+        batch.map(msg => gmailFetch(token, `messages/${msg.id}`, { format: 'metadata', metadataHeaders: ['From', 'Subject', 'Date'] }))
+      );
+    } catch (e) {
+      console.log(`[Trackd] Batch fetch error at ${i}: ${e.message}`);
+      continue;
+    }
+    
+    if (i % 100 === 0) {
+      console.log(`[Trackd] Processing ${i + batchSize}/${allMessageIds.length} emails...`);
+    }
     
     for (const detail of details) {
       const headers = {};
@@ -436,22 +447,41 @@ async function scanInbox(token) {
       // --- Subscription Detection ---
       if (isBillingEmail(subject, from)) {
         const merchant = detectMerchant(subject, from);
+        let subName, subType;
+        
         if (merchant) {
-          const price = extractPrice(snippet);
-          const frequency = detectFrequency(snippet);
-
-          subscriptionResults.push({
-            id: detail.id,
-            name: merchant.name,
-            type: merchant.type,
-            price: price || null,
-            frequency,
-            renewalDate: date,
-            source: 'gmail',
-            detected: new Date().toISOString(),
-            status: 'active',
-          });
+          subName = merchant.name;
+          subType = merchant.type;
+        } else {
+          // Fallback: extract company name from "From" header
+          // e.g. "Netflix <info@netflix.com>" -> "Netflix"
+          // e.g. "spotify@mail.spotify.com" -> "Spotify"
+          const fromName = from.replace(/<.*>/, '').trim() || from;
+          subName = fromName.replace(/@.*$/, '').trim();
+          // Capitalize nicely
+          subName = subName.replace(/\b\w/g, c => c.toUpperCase()).substring(0, 40);
+          subType = 'other';
+          
+          // Log first 10 unmatched emails for debugging
+          if (i < 100) {
+            console.log(`[Trackd] Unmatched billing email: from="${from}" subject="${subject.substring(0,60)}" → extracted name="${subName}"`);
+          }
         }
+        
+        const price = extractPrice(snippet);
+        const frequency = detectFrequency(snippet);
+
+        subscriptionResults.push({
+          id: detail.id,
+          name: subName,
+          type: subType,
+          price: price || null,
+          frequency,
+          renewalDate: date,
+          source: 'gmail',
+          detected: new Date().toISOString(),
+          status: 'active',
+        });
       }
 
       // --- Free Trial Detection ---
