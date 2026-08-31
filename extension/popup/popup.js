@@ -12,6 +12,8 @@ const scanBtn = $('scan-btn');
 const addBtn = $('add-btn');
 const subList = $('sub-list');
 const totalAmount = $('total-amount');
+const trialsBar = $('trials-bar');
+const trialsCount = $('trials-count');
 
 // --- Helpers ---
 
@@ -33,7 +35,7 @@ function showState(state) {
 }
 
 function formatPrice(amount) {
-  if (amount === null || amount === undefined) return '—';
+  if (amount === null || amount === undefined) return '\u2014';
   return `$${amount.toFixed(2)}`;
 }
 
@@ -56,6 +58,32 @@ function getMonthlyTotal(subs) {
       default: return total + sub.price;
     }
   }, 0);
+}
+
+// --- Trial Alerts ---
+
+/**
+ * Fetch trial alerts from the background service worker and render them.
+ */
+async function renderTrialAlerts() {
+  const result = await sendMsg('getTrials');
+  const trials = result.trials || [];
+
+  // Filter to only upcoming trials (within the next 7 days for the "ending soon" indicator)
+  const now = Date.now();
+  const sevenDaysFromNow = now + 7 * 24 * 60 * 60 * 1000;
+
+  const upcoming = trials.filter(t => {
+    const endMs = new Date(t.endDate).getTime();
+    return endMs > now && endMs <= sevenDaysFromNow;
+  });
+
+  if (upcoming.length > 0) {
+    trialsCount.textContent = upcoming.length;
+    trialsBar.classList.remove('hidden');
+  } else {
+    trialsBar.classList.add('hidden');
+  }
 }
 
 // --- Render Dashboard ---
@@ -81,6 +109,9 @@ function renderDashboard(subs) {
       </div>
     </div>
   `).join('');
+
+  // Also render trial alerts
+  renderTrialAlerts();
 }
 
 // --- Auth Flow ---
@@ -144,6 +175,8 @@ addBtn.addEventListener('click', () => {
     renderDashboard(result.subscriptions);
     showState(dashboardState);
   } else {
+    // Still check for trials even if no subscriptions yet
+    await renderTrialAlerts();
     showState(authState);
   }
 })();
