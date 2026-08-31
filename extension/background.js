@@ -170,6 +170,42 @@ function buildSubscription(detail, headers, snippet) {
   };
 }
 
+/**
+ * Best-effort sender name for an unrecognized billing email. Used to offer
+ * unrecognized senders to the user as a review candidate instead of silently
+ * dropping them.
+ */
+function deriveSenderName(from) {
+  let clean = from.replace(/<.*>/, '').trim();
+  if (!clean) {
+    const addr = from.match(/<?([^@\s]+)@/);
+    clean = addr ? addr[1] : from;
+  }
+  clean = clean.replace(/^"|"$/g, '').replace(/@.*$/, '').trim();
+  if (!clean) return 'Unknown Service';
+  return clean.replace(/\b\w/g, c => c.toUpperCase()).substring(0, 40);
+}
+
+/**
+ * Build a review candidate for a billing email whose merchant is not in the
+ * KNOWN_MERCHANTS list. It stays out of the monthly total until the user
+ * confirms it is a real subscription.
+ */
+function buildCandidate(detail, headers, snippet) {
+  return {
+    id: detail.id,
+    name: deriveSenderName(headers.from),
+    type: 'other',
+    price: extractPrice(snippet),
+    frequency: detectFrequency(snippet),
+    renewalDate: headers.date,
+    source: 'gmail',
+    detected: new Date().toISOString(),
+    status: 'pending', // not confirmed; excluded from totals until confirmed
+    recognized: false,
+  };
+}
+
 function detectFrequency(text) {
   if (/\/yr|\/year|\/annual|yearly|annual/i.test(text)) return 'yearly';
   if (/\/mo|\/month|\/monthly|monthly/i.test(text)) return 'monthly';
@@ -504,6 +540,10 @@ for (let i = 0; i < allMessageIds.length; i += batchSize) {
         if (subscriptionResults.length <= 5) {
           console.log(`[Trackd] ✓ Found: "${subscription.name}" from="${from}" subject="${subject.substring(0, 50)}" price=${subscription.price}`);
         }
+      } else if (isBillingEmail(subject, from)) {
+        // Unknown sender that is clearly a billing email -> offer for review
+        // instead of silently dropping it. It is not added to the monthly total.
+        subscriptionResults.push(buildCandidate(detail, { subject, from, date }, snippet));
       }
 
       // --- Free Trial Detection ---
@@ -613,6 +653,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           const filtered = subs.filter(s => s.id !== request.id);
           await saveSubscriptions(filtered);
           sendResponse({ success: true });
+          break;
+        }
+
+        case 'confirmSubscription': {
+          const subs = await loadSubscriptions();
+          const target = subs.find(s => s.id === request.id);
+          if (!target) {
+            sendResponse({ success: false, error: 'Subscription not found' });
+            break;
+          }
+          // Promote from review candidate to a confirmed subscription.
+          // A price is required so it has a real impact on the monthly total.
+          if (!target.price) {
+            target.price = request.price ? Number(request.price) : null;
+          }
+          target.status = 'active';
+          target.recognized = true;
+          await saveSubscriptions(subs);
+          sendResponse({ success: true, subscriptions: subs });
           break;
         }
         

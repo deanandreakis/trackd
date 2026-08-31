@@ -177,3 +177,44 @@ h2 { font-size: 16px; font-weight: 600; }
   font-weight: 600;
   color: #92400e;
 }
+
+/* Review Candidates */
+.review-section {
+  width: 100%;
+  margin-top: 12px;
+}
+.review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 6px;
+}
+.review-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+}
+.review-badge {
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 10px;
+  padding: 1px 8px;
+}
+.review-item {
+  border-style: dashed;
+  border-color: var(--border);
+  background: #fefcfb;
+}
+.review-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+.confirm-btn { color: var(--green); }
+.dismiss-btn { color: var(--red); }
