@@ -94,6 +94,7 @@ function renderDashboard(subs) {
   
   if (subs.length === 0) {
     subList.innerHTML = '<div class="sub-item" style="justify-content:center;color:var(--text-secondary);padding:20px;">No subscriptions found yet. Click scan to check your inbox.</div>';
+    renderTrialAlerts();
     return;
   }
   
@@ -175,8 +176,6 @@ addBtn.addEventListener('click', () => {
     renderDashboard(result.subscriptions);
     showState(dashboardState);
   } else {
-    // Still check for trials even if no subscriptions yet
-    await renderTrialAlerts();
     showState(authState);
   }
 })();

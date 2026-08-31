@@ -127,21 +127,47 @@ function detectMerchant(subject, from) {
 }
 
 function extractPrice(text) {
-  // Match common price patterns: $9.99, $19.99/mo, $119.99/yr
-  const patterns = [
-    /\$(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*\/\s*(mo|month|yr|year|monthly|annual)/i,
+  // Only accept amounts that appear in a billing context. A bare dollar amount
+  // can be an unrelated amount from an email footer, statement, or marketing copy.
+  const billingContext = /(?:charged|charge|costs?|price|amount|total|plan|subscription|renewal|billing|payment|paid|due|per\s+(?:month|year|week)|\/(?:mo|month|yr|year))/i;
+  const amountPatterns = [
+    /\$(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*\/\s*(?:mo|month|yr|year|monthly|annual)/i,
+    /(?:USD|EUR|GBP)\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i,
+    /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:USD|EUR|GBP)/i,
     /\$(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/,
-    /(\d{1,3}(?:\.\d{2})?)\s*(USD|EUR|GBP)/i,
   ];
-  
-  for (const p of patterns) {
-    const m = text.match(p);
-    if (m) {
-      const val = parseFloat(m[1].replace(/,/g, ''));
-      if (!isNaN(val) && val > 0 && val < 10000) return val;
-    }
+
+  for (const pattern of amountPatterns) {
+    const match = pattern.exec(text);
+    if (!match) continue;
+
+    const value = parseFloat(match[1].replace(/,/g, ''));
+    if (isNaN(value) || value <= 0 || value >= 10000) continue;
+
+    const contextStart = Math.max(0, match.index - 80);
+    const contextEnd = Math.min(text.length, match.index + match[0].length + 80);
+    if (billingContext.test(text.slice(contextStart, contextEnd))) return value;
   }
+
   return null;
+}
+
+function buildSubscription(detail, headers, snippet) {
+  const merchant = detectMerchant(headers.subject, headers.from);
+  if (!merchant) return null;
+
+  const price = extractPrice(snippet);
+  return {
+    id: detail.id,
+    name: merchant.name,
+    type: merchant.type,
+    price,
+    frequency: detectFrequency(snippet),
+    renewalDate: headers.date,
+    source: 'gmail',
+    detected: new Date().toISOString(),
+    status: 'active',
+  };
 }
 
 function detectFrequency(text) {
@@ -364,6 +390,7 @@ async function scanInbox(token) {
   // Try multiple search strategies to find billing emails
   const searchStrategies = [
     `newer_than:1y (receipt OR invoice OR subscription OR renewal OR payment)`,
+    `newer_than:1y ("free trial" OR "trial ends" OR "trial expires" OR "trial ending")`,
     `newer_than:1y receipt`,
     `newer_than:1y subscription`,
     `newer_than:1y invoice`,
@@ -463,51 +490,25 @@ for (let i = 0; i < allMessageIds.length; i += batchSize) {
       }
       
       // --- Subscription Detection ---
-      // Gmail search already found billing emails, detect merchant directly
-      const merchant = detectMerchant(subject, from);
-      let subName, subType;
-      
-      if (merchant) {
-        subName = merchant.name;
-        subType = merchant.type;
-      } else {
-        // Fallback: extract company name from "From" header
-        let fromClean = from.replace(/<.*>/, '').trim();
-        if (!fromClean) {
-          // No display name, extract from email address domain
-          const emailMatch = from.match(/@([^.]+)/);
-          fromClean = emailMatch ? emailMatch[1] : from;
-        }
-        fromClean = fromClean.replace(/@.*$/, '').trim();
-        subName = fromClean.replace(/\b\w/g, c => c.toUpperCase()).substring(0, 40);
-        // Last resort: if still empty, use "Unknown Service"
-        if (!subName || subName.trim() === '') {
-          subName = 'Unknown Service';
-        }
-        subType = 'other';
-      }
-      
-      const price = extractPrice(snippet);
-      const frequency = detectFrequency(snippet);
+      // Only create a subscription when a known merchant is identified.
+      // Generic billing emails are intentionally ignored to avoid false positives.
+      const subscription = buildSubscription(
+        detail,
+        { subject, from, date },
+        snippet,
+      );
 
-      subscriptionResults.push({
-        id: detail.id,
-        name: subName,
-        type: subType,
-        price: price || null,
-        frequency,
-        renewalDate: date,
-        source: 'gmail',
-        detected: new Date().toISOString(),
-        status: 'active',
-      });
-      
-      // Log first 5 detected
-      if (subscriptionResults.length <= 5) {
-        console.log(`[Trackd] ✓ Found: "${subName}" from="${from}" subject="${subject.substring(0,50)}" price=${price}`);
+      if (subscription) {
+        subscriptionResults.push(subscription);
+
+        if (subscriptionResults.length <= 5) {
+          console.log(`[Trackd] ✓ Found: "${subscription.name}" from="${from}" subject="${subject.substring(0, 50)}" price=${subscription.price}`);
+        }
       }
 
       // --- Free Trial Detection ---
+      // Trial detection is independent of subscription detection because a trial
+      // email may not contain a known merchant or a conventional billing keyword.
       if (containsTrialLanguage(subject, snippet)) {
         const trialEndDate = parseTrialEndDate(snippet, date);
         if (trialEndDate) {
