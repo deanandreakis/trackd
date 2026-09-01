@@ -166,20 +166,33 @@ h2 { font-size: 16px; font-weight: 600; }
   color: var(--text-secondary);
 }
 
-/* Settings Panel */
-.settings-panel {
-  width: 100%;
-  padding: 12px;
-  background: var(--bg);
-  border-radius: var(--radius);
-  margin-top: 8px;
+/* Settings Modal Overlay */
+.settings-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
 }
-.settings-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text);
-  display: block;
-  margin-bottom: 6px;
+.settings-modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  width: 280px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.settings-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.settings-modal-title {
+  font-size: 16px;
+  font-weight: 700;
 }
 .settings-row {
   display: flex;

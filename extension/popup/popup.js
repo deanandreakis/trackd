@@ -429,10 +429,21 @@ addBtn.addEventListener('click', () => {
   }
 })();
 
-// --- Settings ---
+// --- Settings Toggle ---
 
 settingsToggle.addEventListener('click', () => {
-  settingsPanel.classList.toggle('hidden');
+  settingsPanel.classList.remove('hidden');
+});
+
+$('settings-close').addEventListener('click', () => {
+  settingsPanel.classList.add('hidden');
+});
+
+// Close on overlay click
+settingsPanel.addEventListener('click', (e) => {
+  if (e.target === settingsPanel) {
+    settingsPanel.classList.add('hidden');
+  }
 });
 
 maxMessagesSlider.addEventListener('input', () => {

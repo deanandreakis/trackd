@@ -30,6 +30,7 @@
       <div class="header">
         <h1>Trackd <span class="version">v0.1.0</span></h1>
         <div class="header-actions">
+          <button id="settings-toggle" class="btn-small" title="Settings">⚙️</button>
           <button id="scan-btn" class="btn-small" title="Re-scan inbox">🔄</button>
           <button id="add-btn" class="btn-small" title="Add manually">+</button>
         </div>
@@ -51,16 +52,23 @@
         <div id="review-list" class="sub-list"></div>
       </div>
       <div class="footer-actions">
-        <button id="settings-toggle" class="btn-text">Settings</button>
       </div>
-      <div id="settings-panel" class="settings-panel hidden">
-        <label class="settings-label">Max emails to scan</label>
-        <div class="settings-row">
-          <input type="range" id="max-messages-slider" min="50" max="1000" step="50" value="200" class="slider">
-          <span id="max-messages-value" class="settings-value">200</span>
-        </div>
-        <div class="settings-hint">Higher = more thorough but slower. Default 200.</div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settings-panel" class="settings-overlay hidden">
+    <div class="settings-modal">
+      <div class="settings-modal-header">
+        <span class="settings-modal-title">Settings</span>
+        <button id="settings-close" class="btn-small" title="Close">✕</button>
       </div>
+      <label class="settings-label">Max emails to scan</label>
+      <div class="settings-row">
+        <input type="range" id="max-messages-slider" min="50" max="1000" step="50" value="200" class="slider">
+        <span id="max-messages-value" class="settings-value">200</span>
+      </div>
+      <div class="settings-hint">Higher = more thorough but slower. Default 200.</div>
     </div>
   </div>
 
