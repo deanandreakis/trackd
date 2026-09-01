@@ -582,6 +582,13 @@ async function scanInbox(token) {
   
   console.log(`[Trackd] Found ${allMessageIds.length} billing-related emails, processing...`);
   
+  // Cap at 200 most recent for performance
+  const MAX_MESSAGES = 200;
+  if (allMessageIds.length > MAX_MESSAGES) {
+    allMessageIds.length = MAX_MESSAGES;
+    console.log(`[Trackd] Capped to ${MAX_MESSAGES} most recent for performance.`);
+  }
+  
   // Fetch details for each message (batch of 10 at a time to avoid rate limits)
   const subscriptionResults = [];
   const trialResults = [];
