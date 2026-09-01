@@ -582,11 +582,12 @@ async function scanInbox(token) {
   
   console.log(`[Trackd] Found ${allMessageIds.length} billing-related emails, processing...`);
   
-  // Cap at 200 most recent for performance
-  const MAX_MESSAGES = 200;
+  // Cap at user-configured max (default 200, max 1000)
+  const settings = await new Promise(r => chrome.storage.local.get('trackd_settings', v => r(v.trackd_settings || {})));
+  const MAX_MESSAGES = Math.min(settings.maxMessages || 200, 1000);
   if (allMessageIds.length > MAX_MESSAGES) {
     allMessageIds.length = MAX_MESSAGES;
-    console.log(`[Trackd] Capped to ${MAX_MESSAGES} most recent for performance.`);
+    console.log(`[Trackd] Capped to ${MAX_MESSAGES} most recent (maxMessages setting).`);
   }
   
   // Fetch details for each message (batch of 10 at a time to avoid rate limits)
@@ -752,7 +753,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           sendResponse({ trials });
           break;
         }
-        
+
+        case 'saveSettings': {
+          await new Promise(r => chrome.storage.local.set({ trackd_settings: request.settings }, r));
+          sendResponse({ success: true });
+          break;
+        }
+
         case 'addManual': {
           const subs = await loadSubscriptions();
           subs.push({

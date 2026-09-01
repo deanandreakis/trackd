@@ -20,8 +20,12 @@ const trialsCount = $('trials-count');
 const modal = $('modal');
 const modalTitle = $('modal-title');
 const modalFields = $('modal-fields');
-const modalSave = $('modal-save');
 const modalCancel = $('modal-cancel');
+const modalSave = $('modal-save');
+const settingsToggle = $('settings-toggle');
+const settingsPanel = $('settings-panel');
+const maxMessagesSlider = $('max-messages-slider');
+const maxMessagesValue = $('max-messages-value');
 
 let subsCache = [];
 
@@ -423,4 +427,29 @@ addBtn.addEventListener('click', () => {
   } else {
     showState(authState);
   }
+})();
+
+// --- Settings ---
+
+settingsToggle.addEventListener('click', () => {
+  settingsPanel.classList.toggle('hidden');
+});
+
+maxMessagesSlider.addEventListener('input', () => {
+  const val = maxMessagesSlider.value;
+  maxMessagesValue.textContent = val;
+});
+
+maxMessagesSlider.addEventListener('change', () => {
+  const val = parseInt(maxMessagesSlider.value, 10);
+  sendMsg('saveSettings', { settings: { maxMessages: val } });
+  console.log(`[Trackd] Max messages setting saved: ${val}`);
+});
+
+// Load current setting
+(async () => {
+  const data = await new Promise(r => chrome.storage.local.get('trackd_settings', r));
+  const maxMsg = (data.trackd_settings && data.trackd_settings.maxMessages) || 200;
+  maxMessagesSlider.value = maxMsg;
+  maxMessagesValue.textContent = maxMsg;
 })();
