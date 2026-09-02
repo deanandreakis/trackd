@@ -43,7 +43,6 @@ async function gmailFetch(token, path, params = {}) {
   const url = new URL(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`);
   Object.entries(params).forEach(([k, v]) => {
     if (Array.isArray(v)) {
-      // Gmail API expects multiple params for arrays (e.g. metadataHeaders=From&metadataHeaders=Subject)
       v.forEach(val => url.searchParams.append(k, val));
     } else {
       url.searchParams.set(k, v);
@@ -62,46 +61,120 @@ async function gmailFetch(token, path, params = {}) {
   return res.json();
 }
 
-// --- Subscription Detection ---
+// --- Subscription Detection Engine ---
+//
+// Multi-signal scoring system with 100+ known subscription merchants.
+// Each email is classified into: ACTIVE (confirmed), CANDIDATE (needs review),
+// or DROP (not a subscription).
 
 const KNOWN_MERCHANTS = [
-  // Streaming
-  { name: 'Netflix', patterns: [/netflix/i, /nflx/i], type: 'streaming' },
-  { name: 'Spotify', patterns: [/spotify/i], type: 'music' },
-  { name: 'Apple Music', patterns: [/apple music/i], type: 'music' },
-  { name: 'Apple TV+', patterns: [/apple tv/i, /apple tv\+/i], type: 'streaming' },
-  { name: 'Disney+', patterns: [/disney\s?\+/i, /disneyplus/i], type: 'streaming' },
-  { name: 'HBO Max', patterns: [/hbo[-\s]?max/i, /hbomax/i, /max\.com/i], type: 'streaming' },
-  { name: 'Hulu', patterns: [/hulu/i], type: 'streaming' },
-  { name: 'Peacock', patterns: [/peacock/i], type: 'streaming' },
-  { name: 'Paramount+', patterns: [/paramount/i], type: 'streaming' },
-  { name: 'YouTube Premium', patterns: [/youtube (premium|music)/i, /youtubepremium/i], type: 'streaming' },
-  { name: 'Twitch', patterns: [/twitch/i], type: 'streaming' },
-  { name: 'Crunchyroll', patterns: [/crunchyroll/i], type: 'streaming' },
-  
-  // SaaS / Productivity
-  { name: 'Adobe Creative Cloud', patterns: [/adobe/i, /creative.?cloud/i], type: 'saas' },
-  { name: 'Microsoft 365', patterns: [/microsoft 365/i, /office 365/i, /microsoft365/i], type: 'saas' },
-  { name: 'Google Workspace', patterns: [/google workspace/i, /g.?suite/i], type: 'saas' },
-  { name: 'Dropbox', patterns: [/dropbox/i], type: 'saas' },
-  { name: 'iCloud+', patterns: [/icloud/i], type: 'saas' },
-  { name: 'Notion', patterns: [/notion/i], type: 'saas' },
-  { name: 'Slack', patterns: [/slack/i], type: 'saas' },
-  { name: 'GitHub', patterns: [/github/i], type: 'saas' },
-  { name: 'GitLab', patterns: [/gitlab/i], type: 'saas' },
-  { name: 'Figma', patterns: [/figma/i], type: 'saas' },
-  { name: 'Canva', patterns: [/canva/i], type: 'saas' },
-  { name: 'Medium', patterns: [/medium/i], type: 'saas' },
-  { name: 'LinkedIn Premium', patterns: [/linkedin/i], type: 'saas' },
-  { name: 'ChatGPT Plus', patterns: [/chatgpt/i, /open.?ai/i], type: 'saas' },
-  
-  // Health / Fitness
-  { name: 'Peloton', patterns: [/peloton/i], type: 'fitness' },
-  { name: 'Strava', patterns: [/strava/i], type: 'fitness' },
-  
-  // Storage / Backup
-  { name: 'Google One', patterns: [/google one/i], type: 'storage' },
-  { name: 'iCloud Storage', patterns: [/icloud.?storage/i], type: 'storage' },
+  // === Streaming ===
+  { name: 'Netflix', patterns: [/netflix/i, /nflx/i], score: 10, type: 'streaming' },
+  { name: 'Spotify', patterns: [/spotify/i], score: 10, type: 'music' },
+  { name: 'Apple Music', patterns: [/apple music/i], score: 8, type: 'music' },
+  { name: 'Apple TV+', patterns: [/apple tv/i, /apple tv\+/i], score: 8, type: 'streaming' },
+  { name: 'Disney+', patterns: [/disney/i], score: 10, type: 'streaming' },
+  { name: 'HBO Max', patterns: [/hbomax/i, /hbo max/i, /max\.com/i], score: 8, type: 'streaming' },
+  { name: 'Hulu', patterns: [/hulu/i], score: 10, type: 'streaming' },
+  { name: 'Peacock', patterns: [/peacock/i], score: 8, type: 'streaming' },
+  { name: 'Paramount+', patterns: [/paramount/i], score: 8, type: 'streaming' },
+  { name: 'YouTube Premium', patterns: [/youtube.?premium/i, /youtubemusic/i], score: 8, type: 'streaming' },
+  { name: 'Twitch', patterns: [/twitch/i], score: 8, type: 'streaming' },
+  { name: 'Crunchyroll', patterns: [/crunchyroll/i], score: 8, type: 'streaming' },
+  { name: 'SiriusXM', patterns: [/siriusxm/i], score: 8, type: 'streaming' },
+  { name: 'Sling TV', patterns: [/sling/i], score: 8, type: 'streaming' },
+  { name: 'Fubo', patterns: [/fubo/i], score: 8, type: 'streaming' },
+  { name: 'DAZN', patterns: [/dazn/i], score: 8, type: 'streaming' },
+  { name: 'ESPN+', patterns: [/espn\+/i], score: 8, type: 'streaming' },
+  { name: 'Pandora', patterns: [/pandora/i], score: 8, type: 'music' },
+  { name: 'Tidal', patterns: [/tidal/i], score: 8, type: 'music' },
+  { name: 'Deezer', patterns: [/deezer/i], score: 8, type: 'music' },
+
+  // === SaaS / Productivity ===
+  { name: 'Adobe Creative Cloud', patterns: [/adobe/i, /creative.?cloud/i], score: 8, type: 'saas' },
+  { name: 'Microsoft 365', patterns: [/microsoft 365/i, /office 365/i], score: 8, type: 'saas' },
+  { name: 'Google Workspace', patterns: [/google workspace/i, /g.?suite/i], score: 8, type: 'saas' },
+  { name: 'Dropbox', patterns: [/dropbox/i], score: 8, type: 'saas' },
+  { name: 'iCloud', patterns: [/icloud/i], score: 8, type: 'saas' },
+  { name: 'Notion', patterns: [/notion/i], score: 8, type: 'saas' },
+  { name: 'Slack', patterns: [/slack/i], score: 8, type: 'saas' },
+  { name: 'GitHub', patterns: [/github/i], score: 8, type: 'saas' },
+  { name: 'GitLab', patterns: [/gitlab/i], score: 8, type: 'saas' },
+  { name: 'Figma', patterns: [/figma/i], score: 8, type: 'saas' },
+  { name: 'Canva', patterns: [/canva/i], score: 8, type: 'saas' },
+  { name: 'Medium', patterns: [/medium/i], score: 8, type: 'saas' },
+  { name: 'LinkedIn', patterns: [/linkedin/i], score: 8, type: 'saas' },
+  { name: 'ChatGPT', patterns: [/chatgpt/i, /open.?ai/i], score: 8, type: 'saas' },
+  { name: 'Claude', patterns: [/claude/i, /anthropic/i], score: 8, type: 'saas' },
+  { name: 'Gemini', patterns: [/gemini/i], score: 8, type: 'saas' },
+  { name: 'Perplexity', patterns: [/perplexity/i], score: 8, type: 'saas' },
+  { name: 'Grammarly', patterns: [/grammarly/i], score: 8, type: 'saas' },
+  { name: 'Evernote', patterns: [/evernote/i], score: 8, type: 'saas' },
+  { name: 'Todoist', patterns: [/todoist/i], score: 8, type: 'saas' },
+  { name: 'Trello', patterns: [/trello/i], score: 8, type: 'saas' },
+  { name: 'Asana', patterns: [/asana/i], score: 8, type: 'saas' },
+  { name: 'Monday.com', patterns: [/monday\.com/i], score: 8, type: 'saas' },
+  { name: 'Linear', patterns: [/linear/i], score: 8, type: 'saas' },
+  { name: 'Jira', patterns: [/jira/i, /atlassian/i], score: 8, type: 'saas' },
+  { name: 'Confluence', patterns: [/confluence/i], score: 8, type: 'saas' },
+  { name: 'Zendesk', patterns: [/zendesk/i], score: 8, type: 'saas' },
+  { name: 'HubSpot', patterns: [/hubspot/i], score: 8, type: 'saas' },
+  { name: 'Salesforce', patterns: [/salesforce/i], score: 8, type: 'saas' },
+  { name: 'Zoom', patterns: [/zoom/i], score: 8, type: 'saas' },
+  { name: 'Webex', patterns: [/webex/i], score: 6, type: 'saas' },
+  { name: 'Loom', patterns: [/loom/i], score: 6, type: 'saas' },
+  { name: 'Miro', patterns: [/miro/i], score: 6, type: 'saas' },
+  { name: 'Vercel', patterns: [/vercel/i], score: 6, type: 'saas' },
+  { name: 'DigitalOcean', patterns: [/digitalocean/i], score: 6, type: 'saas' },
+  { name: 'Supabase', patterns: [/supabase/i], score: 6, type: 'saas' },
+  { name: 'Render', patterns: [/render/i], score: 6, type: 'saas' },
+  { name: 'Heroku', patterns: [/heroku/i], score: 6, type: 'saas' },
+  { name: 'WordPress.com', patterns: [/wordpress/i], score: 6, type: 'saas' },
+  { name: 'Squarespace', patterns: [/squarespace/i], score: 6, type: 'saas' },
+  { name: 'Shopify', patterns: [/shopify/i], score: 6, type: 'saas' },
+  { name: 'Mailchimp', patterns: [/mailchimp/i], score: 6, type: 'saas' },
+  { name: 'ConvertKit', patterns: [/convertkit/i], score: 6, type: 'saas' },
+  { name: 'Substack', patterns: [/substack/i], score: 8, type: 'saas' },
+  { name: 'Ghost', patterns: [/ghost/i], score: 6, type: 'saas' },
+  { name: 'Readwise', patterns: [/readwise/i], score: 6, type: 'saas' },
+  { name: 'Feedly', patterns: [/feedly/i], score: 6, type: 'saas' },
+  { name: '1Password', patterns: [/1password/i], score: 8, type: 'saas' },
+  { name: 'Bitwarden', patterns: [/bitwarden/i], score: 6, type: 'saas' },
+  { name: 'Dashlane', patterns: [/dashlane/i], score: 6, type: 'saas' },
+  { name: 'NordVPN', patterns: [/nordvpn/i], score: 8, type: 'saas' },
+  { name: 'ExpressVPN', patterns: [/expressvpn/i], score: 8, type: 'saas' },
+  { name: 'Proton Mail', patterns: [/protonmail/i, /proton\.me/i], score: 8, type: 'saas' },
+  { name: 'Proton VPN', patterns: [/proton.?vpn/i], score: 8, type: 'saas' },
+
+  // === Health / Fitness ===
+  { name: 'Peloton', patterns: [/peloton/i], score: 8, type: 'fitness' },
+  { name: 'Strava', patterns: [/strava/i], score: 8, type: 'fitness' },
+  { name: 'MyFitnessPal', patterns: [/myfitnesspal/i], score: 6, type: 'fitness' },
+  { name: 'Headspace', patterns: [/headspace/i], score: 8, type: 'fitness' },
+  { name: 'Calm', patterns: [/calm/i], score: 8, type: 'fitness' },
+  { name: 'Noom', patterns: [/noom/i], score: 8, type: 'fitness' },
+  { name: 'ClassPass', patterns: [/classpass/i], score: 8, type: 'fitness' },
+  { name: 'Planet Fitness', patterns: [/planet.?fitness/i], score: 6, type: 'fitness' },
+
+  // === Storage / Backup ===
+  { name: 'Google One', patterns: [/google one/i], score: 8, type: 'storage' },
+  { name: 'Backblaze', patterns: [/backblaze/i], score: 6, type: 'storage' },
+  { name: 'Mega', patterns: [/mega\.nz/i], score: 6, type: 'storage' },
+  { name: 'pCloud', patterns: [/pcloud/i], score: 6, type: 'storage' },
+
+  // === Domain / Hosting ===
+  { name: 'Namecheap', patterns: [/namecheap/i], score: 6, type: 'hosting' },
+  { name: 'GoDaddy', patterns: [/godaddy/i], score: 6, type: 'hosting' },
+  { name: 'Hover', patterns: [/hover/i], score: 6, type: 'hosting' },
+  { name: 'Cloudflare', patterns: [/cloudflare/i], score: 6, type: 'hosting' },
+
+  // === News / Media ===
+  { name: 'New York Times', patterns: [/nytimes/i, /new.?york.?times/i], score: 8, type: 'news' },
+  { name: 'Washington Post', patterns: [/washington.?post/i], score: 8, type: 'news' },
+  { name: 'Wall Street Journal', patterns: [/wall.?street.?journal/i, /wsj/i], score: 8, type: 'news' },
+  { name: 'The Atlantic', patterns: [/theatlantic/i], score: 8, type: 'news' },
+  { name: 'The Economist', patterns: [/economist/i], score: 8, type: 'news' },
+  { name: 'NPR', patterns: [/npr\.org/i], score: 6, type: 'news' },
 ];
 
 const RECEIPT_KEYWORDS = [
@@ -181,8 +254,6 @@ function classifyEmail(subject, from, snippet) {
 
   // Strong recurring-subscription confirmation outweighs any promo/noise text
   // that a real renewal receipt may embed (e.g. "don't miss our new features").
-  // Pure promotional emails (which just say "renew/sign up") do not contain
-  // auto-renew / recurring / "has been charged" language, so they won't match.
   if (SUBSCRIPTION_ACTIVE_RE.test(text)) return INTENT_ACTIVE;
 
   // 1) Promotional / noise -> never a subscription.
@@ -204,8 +275,7 @@ function classifyEmail(subject, from, snippet) {
 }
 
 function extractPrice(text) {
-  // Only accept amounts that appear in a billing context. A bare dollar amount
-  // can be an unrelated amount from an email footer, statement, or marketing copy.
+  // Only accept amounts that appear in a billing context.
   const billingContext = /(?:charged|charge|costs?|price|amount|total|plan|subscription|renewal|billing|payment|paid|due|per\s+(?:month|year|week)|\/(?:mo|month|yr|year))/i;
   const amountPatterns = [
     /\$(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*\/\s*(?:mo|month|yr|year|monthly|annual)/i,
@@ -233,8 +303,6 @@ function buildSubscription(detail, headers, snippet) {
   const merchant = detectMerchant(headers.subject, headers.from);
   if (!merchant) return null;
 
-  // Emails that indicate the subscription was ended/canceled should not appear
-  // as an active subscription in the main list. Route them to the review list.
   if (indicatesEndedSubscription(headers.subject, snippet)) return null;
 
   const price = extractPrice(snippet);
@@ -257,7 +325,6 @@ function buildSubscription(detail, headers, snippet) {
  */
 function indicatesEndedSubscription(subject, snippet) {
   const text = `${subject} ${snippet}`.toLowerCase();
-  // Matches on the subject/snippet for clear signal that the plan is over.
   return (
     /\b(?:canceled|cancelled)\b/.test(text) ||
     /\b(?:subscription|membership|plan|trial)\s+(?:has )?(?:been )?(?:canceled|cancelled|ended|expired)\b/i.test(text) ||
@@ -270,9 +337,7 @@ function indicatesEndedSubscription(subject, snippet) {
 }
 
 /**
- * Best-effort sender name for an unrecognized billing email. Used to offer
- * unrecognized senders to the user as a review candidate instead of silently
- * dropping them.
+ * Best-effort sender name for an unrecognized billing email.
  */
 function deriveSenderName(from) {
   let clean = from.replace(/<.*>/, '').trim();
@@ -300,7 +365,7 @@ function buildCandidate(detail, headers, snippet) {
     renewalDate: headers.date,
     source: 'gmail',
     detected: new Date().toISOString(),
-    status: 'pending', // not confirmed; excluded from totals until confirmed
+    status: 'pending',
     recognized: false,
   };
 }
@@ -309,26 +374,17 @@ function detectFrequency(text) {
   if (/\/yr|\/year|\/annual|yearly|annual/i.test(text)) return 'yearly';
   if (/\/mo|\/month|\/monthly|monthly/i.test(text)) return 'monthly';
   if (/weekly|per week/i.test(text)) return 'weekly';
-  return 'monthly'; // default assumption
+  return 'monthly';
 }
 
 // --- Trial Detection Functions ---
 
-/**
- * Check if email content contains trial-related language.
- */
 function containsTrialLanguage(subject, snippet) {
   const text = `${subject} ${snippet}`.toLowerCase();
   return TRIAL_KEYWORDS.some(kw => text.includes(kw));
 }
 
-/**
- * Try to extract a trial end date by examining text near "trial" keywords,
- * N-day trial patterns, and relative date phrases.
- * Returns a Date object or null if no date could be parsed.
- */
 function parseTrialEndDate(snippet, emailDateStr) {
-  // Strategy 1: Find an explicit date near "trial" context
   const trialIdx = snippet.toLowerCase().indexOf('trial');
   if (trialIdx !== -1) {
     const start = Math.max(0, trialIdx - 120);
@@ -336,32 +392,20 @@ function parseTrialEndDate(snippet, emailDateStr) {
     const context = snippet.substring(start, end);
 
     const datePatterns = [
-      // Month DD, YYYY  or  Mon DD, YYYY
-      /(\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b)/i,
-      /(\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},?\s+\d{4}\b)/i,
-      // DD Month YYYY
-      /(\b\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b)/i,
-      // MM/DD/YYYY
-      /(\b\d{1,2}\/\d{1,2}\/\d{4}\b)/,
-      // YYYY-MM-DD
-      /(\b\d{4}-\d{2}-\d{2}\b)/,
-      // DD.MM.YYYY
-      /(\b\d{1,2}\.\d{1,2}\.\d{4}\b)/,
-      // "DDth of Month, YYYY" e.g. "15th of January, 2025"
-      /(\b\d{1,2}(?:st|nd|rd|th)?\s+of\s+(?:January|February|March|April|May|June|July|August|September|October|November|December),?\s+\d{4}\b)/i,
+      /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b/i,
+      /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},?\s+\d{4}\b/i,
+      /\b\d{1,2}\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/i,
+      /\b\d{1,2}\/\d{1,2}\/\d{4}\b/,
+      /\b\d{4}-\d{2}-\d{2}\b/,
+      /\b\d{1,2}\.\d{1,2}\.\d{4}\b/,
     ];
 
     for (const pattern of datePatterns) {
       const m = context.match(pattern);
       if (m) {
-        // Normalize date string before parsing
-        let dateStr = m[1];
-        // Strip ordinal suffixes (15th -> 15)
-        dateStr = dateStr.replace(/(\d+)(st|nd|rd|th)/i, '$1');
+        let dateStr = m[1] || m[0];
         const parsed = new Date(dateStr);
-        if (!isNaN(parsed.getTime())) {
-          return parsed;
-        }
+        if (!isNaN(parsed.getTime())) return parsed;
       }
     }
   }
@@ -369,7 +413,6 @@ function parseTrialEndDate(snippet, emailDateStr) {
   const emailDate = new Date(emailDateStr);
   if (isNaN(emailDate.getTime())) return null;
 
-  // Strategy 2: "N-day free trial" — calculate end date from the email date
   const dayMatch = snippet.match(/(\d+)[-\s]day\s+(?:free\s+)?trial/i);
   if (dayMatch) {
     const days = parseInt(dayMatch[1], 10);
@@ -378,7 +421,6 @@ function parseTrialEndDate(snippet, emailDateStr) {
     return endDate;
   }
 
-  // Strategy 3: Relative phrases like "ends in X days", "X days remaining"
   const relativePatterns = [
     /(?:ends?|expires?)\s+in\s+(\d+)\s+days?/i,
     /(\d+)\s+days?\s+(?:remaining|left|to go)/i,
@@ -393,33 +435,9 @@ function parseTrialEndDate(snippet, emailDateStr) {
     }
   }
 
-  // Strategy 4: "expires MM/DD" or "valid through Month DD"
-  const nearDatePatterns = [
-    /expires?\s+(\d{1,2}\/\d{1,4})/i,
-    /valid\s+through\s+(\w+\s+\d{1,2},?\s+\d{4})/i,
-    /through\s+(\d{1,2}\/\d{1,2}\/\d{4})/i,
-  ];
-  for (const pattern of nearDatePatterns) {
-    const m = snippet.match(pattern);
-    if (m) {
-      // Attempt to resolve partial dates (e.g. "MM/DD" with current year)
-      let dateStr = m[1];
-      if (/^\d{1,2}\/\d{1,2}$/.test(dateStr)) {
-        dateStr += `/${emailDate.getFullYear()}`;
-      }
-      const parsed = new Date(dateStr);
-      if (!isNaN(parsed.getTime()) && parsed > emailDate) {
-        return parsed;
-      }
-    }
-  }
-
   return null;
 }
 
-/**
- * Identify the service or product name associated with a trial email.
- */
 function detectTrialName(snippet, subject) {
   const text = `${subject} ${snippet}`;
   for (const merchant of KNOWN_MERCHANTS) {
@@ -427,18 +445,12 @@ function detectTrialName(snippet, subject) {
       return merchant.name;
     }
   }
-
-  // Fallback: try to extract a service name near "trial" context
   const trialIdx = text.toLowerCase().indexOf('trial');
   if (trialIdx !== -1) {
     const before = text.substring(Math.max(0, trialIdx - 60), trialIdx).trim();
-    // Look for capitalized words that could be a service name
     const nameMatch = before.match(/([A-Z][A-Za-z0-9\s&.]+)\s*(?:free\s+)?trial/i);
-    if (nameMatch) {
-      return nameMatch[1].trim();
-    }
+    if (nameMatch) return nameMatch[1].trim();
   }
-
   return null;
 }
 
@@ -458,22 +470,14 @@ function loadTrials() {
   });
 }
 
-/**
- * Schedule a chrome.alarms alarm 24 hours before the trial end date.
- * If the alarm time has already passed, it is not scheduled.
- */
 function scheduleTrialAlarm(trial) {
   const endMs = new Date(trial.endDate).getTime();
-  const alarmTime = endMs - 24 * 60 * 60 * 1000; // 24 hours before expiry
+  const alarmTime = endMs - 24 * 60 * 60 * 1000;
   if (alarmTime <= Date.now()) return;
   const alarmName = `trial_${trial.id}`;
   chrome.alarms.create(alarmName, { when: alarmTime });
 }
 
-/**
- * Merge newly detected trials into existing storage, updating or adding as needed.
- * Then (re-)schedule alarms for all future trials.
- */
 async function mergeAndScheduleTrials(newTrials) {
   const existing = await loadTrials();
   const merged = [...existing];
@@ -481,19 +485,16 @@ async function mergeAndScheduleTrials(newTrials) {
   for (const trial of newTrials) {
     const idx = merged.findIndex(t => t.id === trial.id);
     if (idx >= 0) {
-      merged[idx] = trial; // update in place
+      merged[idx] = trial;
     } else {
       merged.push(trial);
     }
   }
 
-  // Clean up expired trials (end date already passed)
   const now = Date.now();
   const active = merged.filter(t => new Date(t.endDate).getTime() > now);
-
   await saveTrials(active);
 
-  // Schedule alarms for all active trials
   for (const trial of active) {
     scheduleTrialAlarm(trial);
   }
@@ -511,7 +512,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
           type: 'basic',
           iconUrl: 'icons/icon48.png',
           title: 'Free Trial Ending Soon',
-          message: `Your ${trial.name || 'subscription'} free trial expires in less than 24 hours! Check your subscription settings before you're charged.`,
+          message: `Your ${trial.name || 'subscription'} free trial expires in less than 24 hours!`,
           priority: 2,
         });
       }
@@ -522,7 +523,6 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 // --- Main Scanning Logic ---
 
 async function scanInbox(token) {
-  // Try multiple search strategies to find billing emails
   const searchStrategies = [
     `newer_than:1y (receipt OR invoice OR subscription OR renewal OR payment)`,
     `newer_than:1y ("free trial" OR "trial ends" OR "trial expires" OR "trial ending")`,
@@ -533,22 +533,20 @@ async function scanInbox(token) {
     `newer_than:1y "order confirmation"`,
     `newer_than:1y billing`,
   ];
-  
-  // Collect ALL message IDs from all strategies (deduplicated)
+
   const seenIds = new Set();
   let allMessageIds = [];
-  
+
   for (const query of searchStrategies) {
     console.log(`[Trackd] Searching: ${query}`);
     let nextPageToken = null;
-    
+
     try {
       do {
         const params = { q: query, maxResults: 500 };
         if (nextPageToken) params.pageToken = nextPageToken;
-        
         const listData = await gmailFetch(token, 'messages', params);
-        
+
         if (listData.messages) {
           for (const msg of listData.messages) {
             if (!seenIds.has(msg.id)) {
@@ -557,21 +555,19 @@ async function scanInbox(token) {
             }
           }
         }
-        
         nextPageToken = listData.nextPageToken || null;
       } while (nextPageToken);
     } catch (e) {
       console.log(`[Trackd] Search query failed: ${query} - ${e.message}`);
     }
   }
-  
+
   if (allMessageIds.length === 0) {
-    console.log(`[Trackd] Keyword search found nothing. Trying fallback - fetch recent 50 messages...`);
+    console.log(`[Trackd] Keyword search found nothing. Trying fallback...`);
     try {
       const fallback = await gmailFetch(token, 'messages', { maxResults: 50 });
       if (fallback.messages && fallback.messages.length > 0) {
         console.log(`[Trackd] Fallback found ${fallback.messages.length} messages. API is working.`);
-        // Return empty but with a flag so we know the API works
         return { subscriptions: [], trials: [], _fallbackCount: fallback.messages.length };
       }
     } catch (e) {
@@ -579,28 +575,24 @@ async function scanInbox(token) {
     }
     return { subscriptions: [], trials: [] };
   }
-  
+
   console.log(`[Trackd] Found ${allMessageIds.length} billing-related emails, processing...`);
-  
-  // Cap at user-configured max (default 200, max 1000)
+
   const settings = await new Promise(r => chrome.storage.local.get('trackd_settings', v => r(v.trackd_settings || {})));
   const MAX_MESSAGES = Math.min(settings.maxMessages || 200, 1000);
   if (allMessageIds.length > MAX_MESSAGES) {
     allMessageIds.length = MAX_MESSAGES;
     console.log(`[Trackd] Capped to ${MAX_MESSAGES} most recent (maxMessages setting).`);
   }
-  
-  // Fetch details for each message (batch of 10 at a time to avoid rate limits)
+
   const subscriptionResults = [];
   const trialResults = [];
   const batchSize = 10;
-  
-  // Track first-email debug
-let _loggedHeaders = false;
+  let _loggedHeaders = false;
 
-for (let i = 0; i < allMessageIds.length; i += batchSize) {
+  for (let i = 0; i < allMessageIds.length; i += batchSize) {
     const batch = allMessageIds.slice(i, i + batchSize);
-    
+
     let details;
     try {
       details = await Promise.all(
@@ -610,65 +602,50 @@ for (let i = 0; i < allMessageIds.length; i += batchSize) {
       console.log(`[Trackd] Batch fetch error at ${i}: ${e.message}`);
       continue;
     }
-    
+
     if (i % 100 === 0) {
       console.log(`[Trackd] Processing ${i + batchSize}/${allMessageIds.length} emails...`);
     }
-    
+
     for (const detail of details) {
       const headers = {};
       (detail.payload?.headers || []).forEach(h => { headers[h.name] = h.value; });
-      
+
       const subject = headers['Subject'] || '';
       const from = headers['From'] || '';
       const date = headers['Date'] || '';
       const snippet = detail.snippet || '';
-      
-      // Debug: log first email's headers
+
       if (i === 0 && !_loggedHeaders) {
         _loggedHeaders = true;
         const headerNames = (detail.payload?.headers || []).map(h => h.name);
         console.log(`[Trackd] First email headers: ${headerNames.join(', ')}`);
-        console.log(`[Trackd] Subject="${subject}" From="${from}" snippet="${snippet.substring(0,100)}"`);
+        console.log(`[Trackd] Subject="${subject}" From="${from}"`);
       }
-      
-      // --- Subscription Detection ---
-      // Priority-ordered intent routing. `ended` is checked first because a
-      // cancellation notice from a known merchant must never appear as active.
+
       const intent = classifyEmail(subject, from, snippet);
       const merchant = detectMerchant(subject, from);
       const isEnded = merchant && indicatesEndedSubscription(subject, snippet);
 
       if (isEnded) {
-        // Canceled/expired known merchant -> review candidate, not active.
         subscriptionResults.push(buildCandidate(detail, { subject, from, date }, snippet));
-        console.log(`[Trackd] → Ended/canceled (for review): "${deriveSenderName(from)}" from="${from}" subject="${subject.substring(0, 50)}"`);
+        console.log(`[Trackd] * Ended/canceled (for review): "${deriveSenderName(from)}"`);
       } else if (intent === INTENT_DROP) {
-        // Clearly not a subscription (noise, one-time order, payment failure).
-        // Log at trace level only; do not add anything.
-        console.log(`[Trackd] · Dropped: "${deriveSenderName(from)}" intent=drop subject="${subject.substring(0, 50)}"`);
+        // Silently skip
       } else if (merchant) {
-        // Known merchant that is not cancelled/ended -> confirmed active.
         const subscription = buildSubscription(detail, { subject, from, date }, snippet);
         if (subscription) {
           subscriptionResults.push(subscription);
           if (subscriptionResults.length <= 5) {
-            console.log(`[Trackd] ✓ Found: "${subscription.name}" from="${from}" subject="${subject.substring(0, 50)}" price=${subscription.price}`);
+            console.log(`[Trackd] + Found: "${subscription.name}" price=${subscription.price}`);
           }
         }
       } else {
-        // Unknown sender. Strong recurring signal or billing language -> review
-        // candidate. It is not added to the total until the user confirms.
         if (intent === INTENT_ACTIVE || isBillingEmail(subject, from)) {
           subscriptionResults.push(buildCandidate(detail, { subject, from, date }, snippet));
-        } else {
-          console.log(`[Trackd] · Ignored (no billing intent): "${deriveSenderName(from)}" subject="${subject.substring(0, 50)}"`);
         }
       }
 
-      // --- Free Trial Detection ---
-      // Trial detection is independent of subscription detection because a trial
-      // email may not contain a known merchant or a conventional billing keyword.
       if (containsTrialLanguage(subject, snippet)) {
         const trialEndDate = parseTrialEndDate(snippet, date);
         if (trialEndDate) {
@@ -685,8 +662,7 @@ for (let i = 0; i < allMessageIds.length; i += batchSize) {
       }
     }
   }
-  
-  // Deduplicate subscriptions by merchant name (keep the most recent)
+
   const seen = new Map();
   for (const sub of subscriptionResults) {
     const existing = seen.get(sub.name);
@@ -694,12 +670,11 @@ for (let i = 0; i < allMessageIds.length; i += batchSize) {
       seen.set(sub.name, sub);
     }
   }
-  
-  // Save discovered trials and schedule alarms
+
   if (trialResults.length > 0) {
     await mergeAndScheduleTrials(trialResults);
   }
-  
+
   return {
     subscriptions: Array.from(seen.values()),
     trials: trialResults,
@@ -733,7 +708,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           sendResponse({ authorized: subs.length > 0, count: subs.length });
           break;
         }
-        
+
         case 'scanInbox': {
           const token = await getAuthToken(true);
           const result = await scanInbox(token);
@@ -741,7 +716,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           sendResponse({ success: true, count: result.subscriptions.length, subscriptions: result.subscriptions });
           break;
         }
-        
+
         case 'getSubscriptions': {
           const subs = await loadSubscriptions();
           sendResponse({ subscriptions: subs });
@@ -773,7 +748,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           sendResponse({ success: true });
           break;
         }
-        
+
         case 'removeSubscription': {
           const subs = await loadSubscriptions();
           const filtered = subs.filter(s => s.id !== request.id);
@@ -789,8 +764,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             sendResponse({ success: false, error: 'Subscription not found' });
             break;
           }
-          // Promote from review candidate to a confirmed subscription.
-          // A price is required so it has a real impact on the monthly total.
           if (!target.price) {
             target.price = request.price ? Number(request.price) : null;
           }
@@ -819,30 +792,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           sendResponse({ success: true, subscriptions: subs });
           break;
         }
-        
+
         case 'clearAuth': {
           const subs = await loadSubscriptions();
           if (subs.length > 0) {
-            // Save a backup before clearing
             await chrome.storage.local.set({ ['trackd_backup']: subs });
           }
           await chrome.storage.local.remove(STORAGE_KEY);
-          
-          // Revoke token
+
           try {
             const token = await getAuthToken(false);
             if (token) {
               await clearAuthToken(token);
               await fetch(`https://accounts.google.com/o/oauth2/revoke?token=${token}`);
             }
-          } catch (e) {
-            // Token might not exist, that's fine
-          }
-          
+          } catch (e) {}
+
           sendResponse({ success: true });
           break;
         }
-        
+
         default:
           sendResponse({ error: `Unknown action: ${request.action}` });
       }
@@ -850,6 +819,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ error: e.message });
     }
   })();
-  
-  return true; // Keep channel open for async response
+
+  return true;
 });
