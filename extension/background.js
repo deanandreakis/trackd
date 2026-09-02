@@ -11,7 +11,7 @@ const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 
 // Free tier limits
 const FREE_SUB_LIMIT = 10;
-const GUMROAD_PRODUCT_PERMALINK = 'trackd-pro'; // User updates this after creating Gumroad product
+const GUMROAD_PRODUCT_PERMALINK = 'acaxhv';
 
 // --- Trial Detection Constants ---
 

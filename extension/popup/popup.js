@@ -435,7 +435,7 @@ addBtn.addEventListener('click', () => {
 
 $('upgrade-link').addEventListener('click', (e) => {
   e.preventDefault();
-  chrome.tabs.create({ url: 'https://gumroad.com/l/trackd-pro' });
+  chrome.tabs.create({ url: 'https://gumroad.com/l/acaxhv' });
 });
 
 // --- Initialization ---
