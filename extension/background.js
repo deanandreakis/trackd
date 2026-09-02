@@ -763,6 +763,7 @@ async function scanInbox(token) {
   const trialResults = [];
   const batchSize = 10;
   let _loggedHeaders = false;
+  let _dismissedMerchantCache;
 
   for (let i = 0; i < allMessageIds.length; i += batchSize) {
     const batch = allMessageIds.slice(i, i + batchSize);
@@ -793,7 +794,19 @@ async function scanInbox(token) {
       // Skip if this sender was previously dismissed by the user
       const senderName = deriveSenderName(from);
       const senderLower = senderName.toLowerCase();
-      if (lowerDismissed.some(d => senderLower.includes(d) || d.includes(senderLower))) {
+      // Check direct name match
+      let isDismissed = lowerDismissed.some(d => senderLower.includes(d) || d.includes(senderLower));
+      // Also check if any dismissed name matches a known merchant pattern in the email
+      if (!isDismissed && lowerDismissed.length > 0) {
+        // Build a map of dismissed-to-known-merchant once (lazy init)
+        if (typeof _dismissedMerchantCache === 'undefined') {
+          _dismissedMerchantCache = lowerDismissed.map(d => ({ name: d, merchants: KNOWN_MERCHANTS.filter(m => m.name.toLowerCase() === d) })).filter(x => x.merchants.length > 0);
+        }
+        isDismissed = _dismissedMerchantCache.some(({ merchants }) =>
+          merchants.some(m => m.patterns.some(p => p.test(subject) || p.test(from) || p.test(snippet)))
+        );
+      }
+      if (isDismissed) {
         continue;
       }
 
@@ -812,6 +825,10 @@ async function scanInbox(token) {
       // a known merchant name in the subject. Treat as a confirmed subscription.
       const paymentProcessorMerchant = !merchant && isPaymentProcessor(from) ? detectMerchantInSubject(subject, snippet) : null;
 
+      // Card alert / payment notification check — scan snippet for merchant names
+      // regardless of sender or intent classification
+      const snippetMerchant = !merchant && !paymentProcessorMerchant && CARD_ALERT_RE.test(normalizeEmailText(subject, snippet)) ? detectMerchantInSubject(subject, snippet) : null;
+
       if (paymentProcessorMerchant) {
         // PayPal forwarding a payment to a known subscription merchant
         const price = extractPrice(snippet);
@@ -828,6 +845,23 @@ async function scanInbox(token) {
         });
         if (subscriptionResults.length <= 5) {
           console.log(`[Trackd] + Found (via payment processor): "${paymentProcessorMerchant.name}" price=${price}`);
+        }
+      } else if (snippetMerchant) {
+        // Card alert or payment notification with known merchant in body
+        const price = extractPrice(snippet);
+        subscriptionResults.push({
+          id: detail.id,
+          name: snippetMerchant.name,
+          type: snippetMerchant.type,
+          price,
+          frequency: detectFrequency(snippet),
+          renewalDate: date,
+          source: 'gmail',
+          detected: new Date().toISOString(),
+          status: 'active',
+        });
+        if (subscriptionResults.length <= 5) {
+          console.log(`[Trackd] + Found (via card alert): "${snippetMerchant.name}" price=${price}`);
         }
       } else if (isEnded) {
         subscriptionResults.push(buildCandidate(detail, { subject, from, date }, snippet));
@@ -998,11 +1032,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           const subs = await loadSubscriptions();
           const target = subs.find(s => s.id === request.id);
           if (target) {
-            // Remove from confirmed senders so it doesn't reappear on next scan
+            // Remove from confirmed senders
             const data = await new Promise(r => chrome.storage.local.get(CONFIRMED_SENDERS_KEY, r));
             const confirmed = data[CONFIRMED_SENDERS_KEY] || [];
             const filtered = confirmed.filter(s => s.toLowerCase() !== (target.name || '').toLowerCase());
             await new Promise(r => chrome.storage.local.set({ [CONFIRMED_SENDERS_KEY]: filtered }, r));
+            // Also add to dismissed so known merchants don't reappear
+            await addDismissedSender(target.name);
           }
           const filtered = subs.filter(s => s.id !== request.id);
           await saveSubscriptions(filtered);
