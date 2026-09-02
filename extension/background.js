@@ -4,6 +4,7 @@
 const STORAGE_KEY = 'trackd_subscriptions';
 const TRIALS_STORAGE_KEY = 'trackd_trials';
 const CONFIRMED_SENDERS_KEY = 'trackd_confirmed';
+const DISMISSED_SENDERS_KEY = 'trackd_dismissed';
 const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 
 // --- Trial Detection Constants ---
@@ -243,6 +244,19 @@ async function addConfirmedSender(senderName) {
   if (!confirmed.some(s => s.toLowerCase() === normalized)) {
     confirmed.push(senderName.trim());
     await new Promise(r => chrome.storage.local.set({ [CONFIRMED_SENDERS_KEY]: confirmed }, r));
+  }
+}
+
+/**
+ * Save a sender name as dismissed so future scans ignore it entirely.
+ */
+async function addDismissedSender(senderName) {
+  const data = await new Promise(r => chrome.storage.local.get(DISMISSED_SENDERS_KEY, r));
+  const dismissed = data[DISMISSED_SENDERS_KEY] || [];
+  const normalized = senderName.trim().toLowerCase();
+  if (!dismissed.some(s => s.toLowerCase() === normalized)) {
+    dismissed.push(senderName.trim());
+    await new Promise(r => chrome.storage.local.set({ [DISMISSED_SENDERS_KEY]: dismissed }, r));
   }
 }
 
@@ -639,10 +653,13 @@ async function scanInbox(token) {
     console.log(`[Trackd] Capped to ${MAX_MESSAGES} most recent (maxMessages setting).`);
   }
 
-  // Load user-confirmed senders to use as a dynamic merchant list
+  // Load user-confirmed and dismissed senders
   const confirmedData = await new Promise(r => chrome.storage.local.get(CONFIRMED_SENDERS_KEY, r));
   const confirmedSenders = confirmedData[CONFIRMED_SENDERS_KEY] || [];
   const lowerConfirmed = confirmedSenders.map(s => s.toLowerCase());
+  const dismissedData = await new Promise(r => chrome.storage.local.get(DISMISSED_SENDERS_KEY, r));
+  const dismissedSenders = dismissedData[DISMISSED_SENDERS_KEY] || [];
+  const lowerDismissed = dismissedSenders.map(s => s.toLowerCase());
 
   const subscriptionResults = [];
   const trialResults = [];
@@ -674,6 +691,13 @@ async function scanInbox(token) {
       const from = headers['From'] || '';
       const date = headers['Date'] || '';
       const snippet = detail.snippet || '';
+
+      // Skip if this sender was previously dismissed by the user
+      const senderName = deriveSenderName(from);
+      const senderLower = senderName.toLowerCase();
+      if (lowerDismissed.some(d => senderLower.includes(d) || d.includes(senderLower))) {
+        continue;
+      }
 
       if (i === 0 && !_loggedHeaders) {
         _loggedHeaders = true;
@@ -902,6 +926,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           if (request.frequency) target.frequency = request.frequency;
           await saveSubscriptions(subs);
           sendResponse({ success: true, subscriptions: subs });
+          break;
+        }
+
+        case 'dismissSubscription': {
+          const subs = await loadSubscriptions();
+          const target = subs.find(s => s.id === request.id);
+          if (target) {
+            await addDismissedSender(target.name);
+          }
+          const filtered = subs.filter(s => s.id !== request.id);
+          await saveSubscriptions(filtered);
+          sendResponse({ success: true });
           break;
         }
 
