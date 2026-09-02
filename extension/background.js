@@ -181,12 +181,34 @@ const RECEIPT_KEYWORDS = [
   'receipt', 'invoice', 'subscription', 'renewal', 'payment',
   'your order', 'order confirmation', 'billing', 'charged',
   'your receipt', 'payment confirmation', 'purchase',
-  'you paid', 'statement', 'auto-renew',
+  'you paid', 'paid', 'statement', 'auto-renew',
 ];
 
-function isBillingEmail(subject, from) {
-  const text = `${subject} ${from}`;
+function isBillingEmail(subject, from, snippet) {
+  const text = `${subject} ${from} ${snippet || ''}`;
   return RECEIPT_KEYWORDS.some(kw => text.toLowerCase().includes(kw));
+}
+
+/**
+ * Check if the sender is a known payment processor (PayPal, Stripe, etc.)
+ * rather than a direct subscription merchant.
+ */
+function isPaymentProcessor(from) {
+  return PAYMENT_PROCESSORS.some(p => p.test(from));
+}
+
+/**
+ * Try to detect a known merchant name in the subject line alone.
+ * Used when the email is from a payment processor (e.g. PayPal forwarding
+ * a payment to Peacock TV).
+ */
+function detectMerchantInSubject(subject) {
+  for (const merchant of KNOWN_MERCHANTS) {
+    if (merchant.patterns.some(p => p.test(subject))) {
+      return merchant;
+    }
+  }
+  return null;
 }
 
 function detectMerchant(subject, from) {
@@ -224,6 +246,13 @@ const PAYMENT_FAILURE_RE = /(?:payment (?:failed|declined)|payment method|update
 
 // Strong subscription-billing language that confirms an active recurring plan.
 const SUBSCRIPTION_ACTIVE_RE = /(?:will be (?:renewed|recurring)|auto-?renew|has been (?:renewed|charged)|next (?:billing|payment)|your (?:subscription|membership|plan).*renew|recurring|charged (?:you|for)|you (?:have been|were) charged|subscription (?:updated|confirmed)|plan (?:confirmed|activated)|billed (?:monthly|annually|yearly|weekly))/i;
+
+// Payment processors that forward subscription payments. Emails from these
+// senders often contain subscription merchant names in the subject line.
+const PAYMENT_PROCESSORS = [
+  /paypal/i, /stripe/i, /braintree/i, /square/i, /recurly/i,
+  /chargebee/i, /paddle/i, /gumroad/i, /lemonsqueezy/i,
+];
 
 // Newsletter / promotional / noise language -> never a subscription.
 const NOISE_RE = /(?:newsletter|unsubscribe|weekly (?:news|digest)|monthly digest|marketing|promotional|webinar|blog post|you might like|check out|flash sale|limited time|don't miss|sale ends|100% free|get started today|sign up now)/i;
@@ -268,7 +297,7 @@ function classifyEmail(subject, from, snippet) {
   if (PAYMENT_FAILURE_RE.test(text)) return INTENT_DROP;
 
   // 4) Unknown sender with billing language, no strong signal -> candidate.
-  if (isBillingEmail(subject, from)) return INTENT_CANDIDATE;
+  if (isBillingEmail(subject, from, snippet)) return INTENT_CANDIDATE;
 
   // 5) Nothing pointing at a subscription -> drop.
   return INTENT_DROP;
@@ -627,7 +656,28 @@ async function scanInbox(token) {
       const merchant = detectMerchant(subject, from);
       const isEnded = merchant && indicatesEndedSubscription(subject, snippet);
 
-      if (isEnded) {
+      // Special case: email from a payment processor (PayPal, Stripe) with
+      // a known merchant name in the subject. Treat as a confirmed subscription.
+      const paymentProcessorMerchant = !merchant && isPaymentProcessor(from) ? detectMerchantInSubject(subject) : null;
+
+      if (paymentProcessorMerchant) {
+        // PayPal forwarding a payment to a known subscription merchant
+        const price = extractPrice(snippet);
+        subscriptionResults.push({
+          id: detail.id,
+          name: paymentProcessorMerchant.name,
+          type: paymentProcessorMerchant.type,
+          price,
+          frequency: detectFrequency(snippet),
+          renewalDate: date,
+          source: 'gmail',
+          detected: new Date().toISOString(),
+          status: 'active',
+        });
+        if (subscriptionResults.length <= 5) {
+          console.log(`[Trackd] + Found (via payment processor): "${paymentProcessorMerchant.name}" price=${price}`);
+        }
+      } else if (isEnded) {
         subscriptionResults.push(buildCandidate(detail, { subject, from, date }, snippet));
         console.log(`[Trackd] * Ended/canceled (for review): "${deriveSenderName(from)}"`);
       } else if (intent === INTENT_DROP) {
@@ -641,7 +691,7 @@ async function scanInbox(token) {
           }
         }
       } else {
-        if (intent === INTENT_ACTIVE || isBillingEmail(subject, from)) {
+        if (intent === INTENT_ACTIVE || isBillingEmail(subject, from, snippet)) {
           subscriptionResults.push(buildCandidate(detail, { subject, from, date }, snippet));
         }
       }
