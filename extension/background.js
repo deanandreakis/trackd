@@ -286,9 +286,10 @@ function isPaymentProcessor(from) {
  * Used when the email is from a payment processor (e.g. PayPal forwarding
  * a payment to Peacock TV).
  */
-function detectMerchantInSubject(subject) {
+function detectMerchantInSubject(subject, snippet) {
+  const text = `${subject || ''} ${snippet || ''}`;
   for (const merchant of KNOWN_MERCHANTS) {
-    if (merchant.patterns.some(p => p.test(subject))) {
+    if (merchant.patterns.some(p => p.test(text))) {
       return merchant;
     }
   }
@@ -366,13 +367,24 @@ const ONE_TIME_ORDER_RE = /(?:order (?:confirmation|confirmed|placed|is|has)|you
 const PAYMENT_FAILURE_RE = /(?:payment (?:failed|declined)|payment method|update (?:your )?(?:billing|payment)|couldn't? (?:process|verify) (?:your )?payment|verify (?:your )?billing|your card (?:was )?declined|re.?enter (?:your )?payment|billing details)/i;
 
 // Strong subscription-billing language that confirms an active recurring plan.
-const SUBSCRIPTION_ACTIVE_RE = /(?:will be (?:renewed|recurring)|auto-?renew|has been (?:renewed|charged)|next (?:billing|payment)|your (?:subscription|membership|plan).*renew|recurring|charged (?:you|for)|you (?:have been|were) charged|subscription (?:updated|confirmed)|plan (?:confirmed|activated)|billed (?:monthly|annually|yearly|weekly))/i;
+const SUBSCRIPTION_ACTIVE_RE = /(?:will be (?:renewed|recurring)|auto-?renew|has been (?:renewed|charged)|next (?:billing|payment)|your (?:subscription|membership|plan).*renew|recurring|charged (?:you|for)|you (?:have been|were) charged|subscription (?:updated|confirmed)|plan (?:confirmed|activated)|billed (?:monthly|annually|yearly|weekly)|pending charge|card alert|automatic payment|merchant.*charge|charge.*at|payment.*to|scheduled payment)/i;
 
 // Payment processors that forward subscription payments. Emails from these
 // senders often contain subscription merchant names in the subject line.
 const PAYMENT_PROCESSORS = [
   /paypal/i, /stripe/i, /braintree/i, /square/i, /recurly/i,
   /chargebee/i, /paddle/i, /gumroad/i, /lemonsqueezy/i,
+  // Banks and credit unions that send card alert emails
+  /chase/i, /bank of america/i, /wells fargo/i, /bofa/i, /wf/i,
+  /citi/i, /citi.?bank/i, /capital one/i, /capitalone/i,
+  /us.?bank/i, /pnc/i, /truist/i, /discover/i, /discovercard/i,
+  /american express/i, /amex/i, /credit.?union/i, /consumers.?credit/i,
+  /first.?republic/i, /ally.?bank/i, /sofi/i, /monzo/i, /revolut/i,
+  /wise/i, /transferwise/i, /venmo/i, /zelle/i,
+  /chase\.com/i, /capitalone\.com/i, /discover\.com/i,
+  /card.?alert/i, /fraud.?alert/i, /transaction.?alert/i,
+  /credit.?card/i, /fidelity/i, /vanguard/i,
+  /schwab/i, /merrill/i, /morgan.?stanley/i,
 ];
 
 // Newsletter / promotional / noise language -> never a subscription.
@@ -794,7 +806,7 @@ async function scanInbox(token) {
 
       // Special case: email from a payment processor (PayPal, Stripe) with
       // a known merchant name in the subject. Treat as a confirmed subscription.
-      const paymentProcessorMerchant = !merchant && isPaymentProcessor(from) ? detectMerchantInSubject(subject) : null;
+      const paymentProcessorMerchant = !merchant && isPaymentProcessor(from) ? detectMerchantInSubject(subject, snippet) : null;
 
       if (paymentProcessorMerchant) {
         // PayPal forwarding a payment to a known subscription merchant
