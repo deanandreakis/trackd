@@ -390,6 +390,10 @@ const PAYMENT_PROCESSORS = [
 // Newsletter / promotional / noise language -> never a subscription.
 const NOISE_RE = /(?:newsletter|unsubscribe|weekly (?:news|digest)|monthly digest|marketing|promotional|webinar|blog post|you might like|check out|flash sale|limited time|don't miss|sale ends|100% free|get started today|sign up now)/i;
 
+// Card alert / payment notification patterns — emails from any sender that
+// mention a merchant name and a charge amount, indicating a subscription.
+const CARD_ALERT_RE = /(?:pending charge|charge at|charge from|payment to|payment at|purchase at|purchase from|debit card|credit card|card ending|card alert|transaction alert|automatic payment|scheduled payment|recurring charge|merchant charge|withdrawn from)/i;
+
 /**
  * Normalize an email's subject + snippet for matching: collapse whitespace and
  * drop HTML tags (receipt snippets can contain inline markup).
@@ -829,7 +833,28 @@ async function scanInbox(token) {
         subscriptionResults.push(buildCandidate(detail, { subject, from, date }, snippet));
         console.log(`[Trackd] * Ended/canceled (for review): "${deriveSenderName(from)}"`);
       } else if (intent === INTENT_DROP) {
-        // Silently skip
+        // Card alerts and payment notifications — check for merchant name in snippet
+        if (CARD_ALERT_RE.test(normalizeEmailText(subject, snippet))) {
+          const snippetMerchant = detectMerchantInSubject(subject, snippet);
+          if (snippetMerchant) {
+            const price = extractPrice(snippet);
+            subscriptionResults.push({
+              id: detail.id,
+              name: snippetMerchant.name,
+              type: snippetMerchant.type,
+              price,
+              frequency: detectFrequency(snippet),
+              renewalDate: date,
+              source: 'gmail',
+              detected: new Date().toISOString(),
+              status: 'active',
+            });
+            console.log(`[Trackd] + Found (via card alert): "${snippetMerchant.name}" price=${price}`);
+          } else {
+            // Card alert with unknown merchant -> candidate for review
+            subscriptionResults.push(buildCandidate(detail, { subject, from, date }, snippet));
+          }
+        }
       } else if (merchant) {
         const subscription = buildSubscription(detail, { subject, from, date }, snippet);
         if (subscription) {
