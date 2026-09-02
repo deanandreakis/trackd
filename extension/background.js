@@ -845,12 +845,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             status: 'active',
           });
           await saveSubscriptions(subs);
+          // Save sender name so future scans auto-detect it
+          await addConfirmedSender(request.subscription.name);
           sendResponse({ success: true });
           break;
         }
 
         case 'removeSubscription': {
           const subs = await loadSubscriptions();
+          const target = subs.find(s => s.id === request.id);
+          if (target) {
+            // Remove from confirmed senders so it doesn't reappear on next scan
+            const data = await new Promise(r => chrome.storage.local.get(CONFIRMED_SENDERS_KEY, r));
+            const confirmed = data[CONFIRMED_SENDERS_KEY] || [];
+            const filtered = confirmed.filter(s => s.toLowerCase() !== (target.name || '').toLowerCase());
+            await new Promise(r => chrome.storage.local.set({ [CONFIRMED_SENDERS_KEY]: filtered }, r));
+          }
           const filtered = subs.filter(s => s.id !== request.id);
           await saveSubscriptions(filtered);
           sendResponse({ success: true });
