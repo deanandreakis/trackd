@@ -5,6 +5,7 @@ const STORAGE_KEY = 'trackd_subscriptions';
 const TRIALS_STORAGE_KEY = 'trackd_trials';
 const CONFIRMED_SENDERS_KEY = 'trackd_confirmed';
 const DISMISSED_SENDERS_KEY = 'trackd_dismissed';
+const REMOVED_IDS_KEY = 'trackd_removed';
 const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 
 // --- Trial Detection Constants ---
@@ -751,13 +752,15 @@ async function scanInbox(token) {
     console.log(`[Trackd] Capped to ${MAX_MESSAGES} most recent (maxMessages setting).`);
   }
 
-  // Load user-confirmed and dismissed senders
+  // Load user-confirmed, dismissed, and removed senders
   const confirmedData = await new Promise(r => chrome.storage.local.get(CONFIRMED_SENDERS_KEY, r));
   const confirmedSenders = confirmedData[CONFIRMED_SENDERS_KEY] || [];
   const lowerConfirmed = confirmedSenders.map(s => s.toLowerCase());
   const dismissedData = await new Promise(r => chrome.storage.local.get(DISMISSED_SENDERS_KEY, r));
   const dismissedSenders = dismissedData[DISMISSED_SENDERS_KEY] || [];
   const lowerDismissed = dismissedSenders.map(s => s.toLowerCase());
+  const removedData = await new Promise(r => chrome.storage.local.get(REMOVED_IDS_KEY, r));
+  const removedIds = new Set(removedData[REMOVED_IDS_KEY] || []);
 
   const subscriptionResults = [];
   const trialResults = [];
@@ -790,6 +793,11 @@ async function scanInbox(token) {
       const from = headers['From'] || '';
       const date = headers['Date'] || '';
       const snippet = detail.snippet || '';
+
+      // Skip if this email ID was previously removed by the user
+      if (removedIds.has(detail.id)) {
+        continue;
+      }
 
       // Skip if this sender was previously dismissed by the user
       const senderName = deriveSenderName(from);
@@ -1037,8 +1045,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             const confirmed = data[CONFIRMED_SENDERS_KEY] || [];
             const filtered = confirmed.filter(s => s.toLowerCase() !== (target.name || '').toLowerCase());
             await new Promise(r => chrome.storage.local.set({ [CONFIRMED_SENDERS_KEY]: filtered }, r));
-            // Also add to dismissed so known merchants don't reappear
-            await addDismissedSender(target.name);
+            // Track this exact email ID so it doesn't reappear on next scan
+            const removedData = await new Promise(r => chrome.storage.local.get(REMOVED_IDS_KEY, r));
+            const removedIds = removedData[REMOVED_IDS_KEY] || [];
+            if (!removedIds.includes(target.id)) {
+              removedIds.push(target.id);
+              // Cap the list to prevent unbounded growth
+              if (removedIds.length > 500) removedIds.splice(0, removedIds.length - 500);
+              await new Promise(r => chrome.storage.local.set({ [REMOVED_IDS_KEY]: removedIds }, r));
+            }
           }
           const filtered = subs.filter(s => s.id !== request.id);
           await saveSubscriptions(filtered);
