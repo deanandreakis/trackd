@@ -1,6 +1,8 @@
 // Trackd Popup Script
 // Handles UI state transitions and user interactions
 
+import { trackEvent, trackPageView } from '../analytics.js';
+
 const $ = (id) => document.getElementById(id);
 
 // State elements
@@ -235,6 +237,7 @@ async function confirmCandidate(id) {
       const price = values.price;
       await sendMsg('confirmSubscription', { id, price });
       await refreshAndRender();
+      trackEvent('candidate_confirmed');
     },
   });
 }
@@ -245,6 +248,7 @@ async function confirmCandidate(id) {
 async function dismissCandidate(id) {
   await sendMsg('removeSubscription', { id });
   await refreshAndRender();
+  trackEvent('candidate_dismissed');
 }
 
 // --- Render Dashboard ---
@@ -367,18 +371,21 @@ reviewList.addEventListener('click', (e) => {
 
 authBtn.addEventListener('click', async () => {
   showState(scanningState);
+  trackEvent('gmail_connect_start');
 
   const result = await sendMsg('scanInbox');
 
   if (result.error) {
-    // Auth might have failed
     showState(authState);
     console.error('Scan error:', result.error);
+    trackEvent('gmail_connect_error', { error: result.error.substring(0, 100) });
     return;
   }
 
   renderDashboard(result.subscriptions || []);
   showState(dashboardState);
+  trackEvent('gmail_connected');
+  trackEvent('scan_completed', { count: result.subscriptions.length });
 });
 
 // --- Scan Button ---
@@ -391,11 +398,13 @@ scanBtn.addEventListener('click', async () => {
   if (result.error) {
     console.error('Scan error:', result.error);
     showState(dashboardState);
+    trackEvent('scan_error', { error: result.error.substring(0, 100) });
     return;
   }
 
   renderDashboard(result.subscriptions || []);
   showState(dashboardState);
+  trackEvent('scan_completed', { count: result.subscriptions.length });
 });
 
 // --- Add Manual ---
@@ -426,6 +435,13 @@ addBtn.addEventListener('click', () => {
     showState(dashboardState);
   } else {
     showState(authState);
+  }
+
+  // Track first run
+  const firstRun = await new Promise(r => chrome.storage.local.get('trackd_first_run', r));
+  if (!firstRun.trackd_first_run) {
+    trackEvent('extension_opened');
+    await new Promise(r => chrome.storage.local.set({ trackd_first_run: true }, r));
   }
 })();
 
