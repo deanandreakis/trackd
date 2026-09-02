@@ -243,10 +243,19 @@ h2 { font-size: 16px; font-weight: 600; }
 .upgrade-link a:hover {
   text-decoration: underline;
 }
+.settings-license-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.settings-license-row .btn-small {
+  width: 100%;
+  padding: 7px;
+}
 .settings-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 .slider {
   flex: 1;
