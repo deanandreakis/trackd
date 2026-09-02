@@ -3,6 +3,7 @@
 
 const STORAGE_KEY = 'trackd_subscriptions';
 const TRIALS_STORAGE_KEY = 'trackd_trials';
+const CONFIRMED_SENDERS_KEY = 'trackd_confirmed';
 const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 
 // --- Trial Detection Constants ---
@@ -219,6 +220,30 @@ function detectMerchant(subject, from) {
     }
   }
   return null;
+}
+
+/**
+ * Check if a sender name has been previously confirmed as a subscription
+ * by the user. This allows the algorithm to learn from user reviews.
+ */
+async function isConfirmedSender(senderName) {
+  const data = await new Promise(r => chrome.storage.local.get(CONFIRMED_SENDERS_KEY, r));
+  const confirmed = data[CONFIRMED_SENDERS_KEY] || [];
+  return confirmed.some(s => s.toLowerCase() === senderName.toLowerCase());
+}
+
+/**
+ * Save a sender name as a confirmed subscription so future scans
+ * recognize it without needing to re-confirm.
+ */
+async function addConfirmedSender(senderName) {
+  const data = await new Promise(r => chrome.storage.local.get(CONFIRMED_SENDERS_KEY, r));
+  const confirmed = data[CONFIRMED_SENDERS_KEY] || [];
+  const normalized = senderName.trim().toLowerCase();
+  if (!confirmed.some(s => s.toLowerCase() === normalized)) {
+    confirmed.push(senderName.trim());
+    await new Promise(r => chrome.storage.local.set({ [CONFIRMED_SENDERS_KEY]: confirmed }, r));
+  }
 }
 
 // --- Intent Classification ---
@@ -614,6 +639,11 @@ async function scanInbox(token) {
     console.log(`[Trackd] Capped to ${MAX_MESSAGES} most recent (maxMessages setting).`);
   }
 
+  // Load user-confirmed senders to use as a dynamic merchant list
+  const confirmedData = await new Promise(r => chrome.storage.local.get(CONFIRMED_SENDERS_KEY, r));
+  const confirmedSenders = confirmedData[CONFIRMED_SENDERS_KEY] || [];
+  const lowerConfirmed = confirmedSenders.map(s => s.toLowerCase());
+
   const subscriptionResults = [];
   const trialResults = [];
   const batchSize = 10;
@@ -692,7 +722,27 @@ async function scanInbox(token) {
         }
       } else {
         if (intent === INTENT_ACTIVE || isBillingEmail(subject, from, snippet)) {
-          subscriptionResults.push(buildCandidate(detail, { subject, from, date }, snippet));
+          // Check if this sender was previously confirmed by the user
+          const senderName = deriveSenderName(from).toLowerCase();
+          const isConfirmed = lowerConfirmed.some(s => senderName.includes(s) || s.includes(senderName));
+
+          if (isConfirmed) {
+            // Previously confirmed by user -> treat as a real subscription
+            subscriptionResults.push({
+              id: detail.id,
+              name: deriveSenderName(from),
+              type: 'other',
+              price: extractPrice(snippet),
+              frequency: detectFrequency(snippet),
+              renewalDate: date,
+              source: 'gmail',
+              detected: new Date().toISOString(),
+              status: 'active',
+              recognized: true,
+            });
+          } else {
+            subscriptionResults.push(buildCandidate(detail, { subject, from, date }, snippet));
+          }
         }
       }
 
@@ -820,6 +870,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           target.status = 'active';
           target.recognized = true;
           await saveSubscriptions(subs);
+          // Save sender name so future scans auto-detect it
+          await addConfirmedSender(target.name);
           sendResponse({ success: true, subscriptions: subs });
           break;
         }
