@@ -9,6 +9,8 @@
   --accent-hover: #1d4ed8;
   --border: #e5e7eb;
   --green: #059669;
+  --green-soft: #ecfdf5;
+  --accent-soft: #eff6ff;
   --red: #dc2626;
   --radius: 10px;
 }
@@ -193,6 +195,53 @@ h2 { font-size: 16px; font-weight: 600; }
 .settings-modal-title {
   font-size: 16px;
   font-weight: 700;
+}
+
+.tier-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 100px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.tier-badge.pro {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.settings-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 12px 0;
+}
+
+.settings-input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+  font-family: monospace;
+}
+.settings-input:focus {
+  border-color: var(--accent);
+}
+.upgrade-link {
+  text-align: center;
+  margin-top: 12px;
+}
+.upgrade-link a {
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+.upgrade-link a:hover {
+  text-decoration: underline;
 }
 .settings-row {
   display: flex;

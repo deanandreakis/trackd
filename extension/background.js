@@ -6,7 +6,12 @@ const TRIALS_STORAGE_KEY = 'trackd_trials';
 const CONFIRMED_SENDERS_KEY = 'trackd_confirmed';
 const DISMISSED_SENDERS_KEY = 'trackd_dismissed';
 const REMOVED_IDS_KEY = 'trackd_removed';
+const LICENSE_KEY = 'trackd_license';
 const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
+
+// Free tier limits
+const FREE_SUB_LIMIT = 10;
+const GUMROAD_PRODUCT_PERMALINK = 'trackd-pro'; // User updates this after creating Gumroad product
 
 // --- Trial Detection Constants ---
 
@@ -960,8 +965,15 @@ async function scanInbox(token) {
     await mergeAndScheduleTrials(trialResults);
   }
 
+  // Enforce free tier limit
+  let finalSubs = Array.from(seen.values());
+  const pro = await isPro();
+  if (!pro && finalSubs.length > FREE_SUB_LIMIT) {
+    finalSubs = finalSubs.slice(0, FREE_SUB_LIMIT);
+  }
+
   return {
-    subscriptions: Array.from(seen.values()),
+    subscriptions: finalSubs,
     trials: trialResults,
   };
 }
@@ -980,6 +992,53 @@ function loadSubscriptions() {
       resolve(data[STORAGE_KEY] || []);
     });
   });
+}
+
+// --- License / Tier ---
+
+async function getLicenseInfo() {
+  const data = await new Promise(r => chrome.storage.local.get(LICENSE_KEY, r));
+  return data[LICENSE_KEY] || null;
+}
+
+async function saveLicenseInfo(info) {
+  await new Promise(r => chrome.storage.local.set({ [LICENSE_KEY]: info }, r));
+}
+
+async function verifyLicense(key) {
+  try {
+    const res = await fetch('https://api.gumroad.com/v2/licenses/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        product_permalink: GUMROAD_PRODUCT_PERMALINK,
+        license_key: key,
+      }),
+    });
+    const data = await res.json();
+    if (data.success && data.consumption && data.consumption.in_use) {
+      await saveLicenseInfo({ key, verified: true, verifiedAt: Date.now() });
+      return { valid: true };
+    }
+    return { valid: false, error: data.message || 'Invalid license key' };
+  } catch (e) {
+    return { valid: false, error: 'Could not verify license. Check your connection.' };
+  }
+}
+
+async function isPro() {
+  const info = await getLicenseInfo();
+  if (!info || !info.verified) return false;
+  // Re-verify once per day
+  if (Date.now() - info.verifiedAt > 86400000) {
+    const result = await verifyLicense(info.key);
+    return result.valid;
+  }
+  return true;
+}
+
+function enforceFreeLimit(subs) {
+  return subs.slice(0, FREE_SUB_LIMIT);
 }
 
 // --- Message Handler ---
@@ -1022,6 +1081,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         case 'addManual': {
           const subs = await loadSubscriptions();
+          const pro = await isPro();
+          if (!pro && subs.length >= FREE_SUB_LIMIT) {
+            sendResponse({ error: 'limit', count: subs.length, limit: FREE_SUB_LIMIT });
+            break;
+          }
           subs.push({
             ...request.subscription,
             id: `manual_${Date.now()}`,
@@ -1127,6 +1191,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           } catch (e) {}
 
           sendResponse({ success: true });
+          break;
+        }
+
+        case 'checkPro': {
+          const pro = await isPro();
+          const info = await getLicenseInfo();
+          sendResponse({ pro, hasLicense: !!info });
+          break;
+        }
+
+        case 'activateLicense': {
+          const result = await verifyLicense(request.key);
+          sendResponse(result);
           break;
         }
 

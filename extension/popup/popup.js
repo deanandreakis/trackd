@@ -28,6 +28,10 @@ const settingsToggle = $('settings-toggle');
 const settingsPanel = $('settings-panel');
 const maxMessagesSlider = $('max-messages-slider');
 const maxMessagesValue = $('max-messages-value');
+const tierBadge = $('tier-badge');
+const licenseInput = $('license-input');
+const licenseActivateBtn = $('license-activate-btn');
+const licenseStatus = $('license-status');
 
 let subsCache = [];
 
@@ -417,12 +421,21 @@ addBtn.addEventListener('click', () => {
       { id: 'price', label: 'Monthly price (optional)', type: 'number', placeholder: '0.00' },
     ],
     onSave: async (values) => {
-      await sendMsg('addManual', {
+      const result = await sendMsg('addManual', {
         subscription: { name: values.name, price: values.price, frequency: 'monthly', type: 'other', status: 'active' }
       });
+      if (result.error === 'limit') {
+        alert(`Free tier limited to ${result.limit} subscriptions. Upgrade to Pro for unlimited.`);
+        return;
+      }
       await refreshAndRender();
     },
   });
+});
+
+$('upgrade-link').addEventListener('click', (e) => {
+  e.preventDefault();
+  chrome.tabs.create({ url: 'https://gumroad.com/l/trackd-pro' });
 });
 
 // --- Initialization ---
@@ -447,7 +460,19 @@ addBtn.addEventListener('click', () => {
 
 // --- Settings Toggle ---
 
-settingsToggle.addEventListener('click', () => {
+settingsToggle.addEventListener('click', async () => {
+  // Check Pro status
+  const result = await sendMsg('checkPro');
+  if (result.pro) {
+    tierBadge.textContent = 'Pro';
+    tierBadge.classList.add('pro');
+    licenseStatus.textContent = 'Pro active';
+    licenseInput.disabled = true;
+  } else {
+    tierBadge.textContent = 'Free';
+    tierBadge.classList.remove('pro');
+    licenseStatus.textContent = 'Up to 10 subscriptions. Upgrade to Pro for unlimited.';
+  }
   settingsPanel.classList.remove('hidden');
 });
 
@@ -480,3 +505,30 @@ maxMessagesSlider.addEventListener('change', () => {
   maxMessagesSlider.value = maxMsg;
   maxMessagesValue.textContent = maxMsg;
 })();
+
+// --- License Activation ---
+
+licenseActivateBtn.addEventListener('click', async () => {
+  const key = licenseInput.value.trim();
+  if (!key) return;
+
+  licenseActivateBtn.disabled = true;
+  licenseActivateBtn.textContent = 'Verifying...';
+  licenseStatus.textContent = '';
+
+  const result = await sendMsg('activateLicense', { key });
+
+  if (result.valid) {
+    licenseStatus.textContent = 'Pro activated!';
+    licenseStatus.style.color = 'var(--green)';
+    tierBadge.textContent = 'Pro';
+    tierBadge.classList.add('pro');
+    licenseInput.disabled = true;
+    licenseActivateBtn.textContent = 'Done';
+  } else {
+    licenseStatus.textContent = result.error || 'Invalid key';
+    licenseStatus.style.color = 'var(--red)';
+    licenseActivateBtn.disabled = false;
+    licenseActivateBtn.textContent = 'Activate';
+  }
+});
