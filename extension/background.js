@@ -11,7 +11,7 @@ const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 
 // Free tier limits
 const FREE_SUB_LIMIT = 10;
-const GUMROAD_PRODUCT_PERMALINK = 'acaxhv';
+const GUMROAD_PRODUCT_ID = 'AmXohGhlFVYMThzebN_-2g==';
 
 // --- Trial Detection Constants ---
 
@@ -1011,12 +1011,12 @@ async function verifyLicense(key) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        product_permalink: GUMROAD_PRODUCT_PERMALINK,
+        product_id: GUMROAD_PRODUCT_ID,
         license_key: key,
       }),
     });
     const data = await res.json();
-    if (data.success && data.consumption && data.consumption.in_use) {
+    if (data.success) {
       await saveLicenseInfo({ key, verified: true, verifiedAt: Date.now() });
       return { valid: true };
     }
