@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Trackd",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Find every subscription you're paying for — no bank login required. Scans your Gmail receipts to detect subscriptions.",
   "permissions": [
     "identity",
