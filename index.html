@@ -522,7 +522,7 @@
     <p>
       The average American wastes <strong>$252/year</strong> on unused subscriptions&mdash;up 24% from last year.
       Trackd scans your Gmail receipts, finds everything, and helps you cancel what you don't need.
-      No bank login. No Plaid. <strong>Your email data never leaves your browser.</strong>
+      No bank login. No Plaid. <strong>Your Gmail content is scanned locally in your browser; only anonymous usage analytics are sent.</strong>
     </p>
 
     <div class="stat-block">
@@ -586,8 +586,8 @@
       <div class="feature-item">
         <div class="feature-icon lock">🛡️</div>
         <div>
-          <h3>Your data never leaves</h3>
-          <p>Email analysis runs in your browser. No data is sent to our servers. You can revoke Gmail access at any time from your Google account settings.</p>
+          <h3>Your Gmail content never leaves the browser</h3>
+        <p>Gmail content is scanned locally in your browser; only anonymous usage analytics are sent. You can revoke Gmail access at any time from your Google account settings.</p>
         </div>
       </div>
     </div>
@@ -616,9 +616,9 @@
       <div class="privacy-item">
         <h3>🏠 Where your data lives</h3>
         <ul>
-          <li>Email analysis runs <strong>entirely in your browser</strong> — no data leaves your machine</li>
+          <li>Gmail content is analyzed <strong>entirely in your browser</strong> — only anonymous usage analytics are sent</li>
           <li>Detected subscriptions are stored locally using <span class="tech-spec">chrome.storage.local</span></li>
-          <li>No cloud account required. No data uploaded to our servers.</li>
+          <li>No cloud account required. No Gmail content is sent to our servers — only anonymous usage analytics.</li>
           <li>You can delete all stored data by uninstalling the extension</li>
         </ul>
       </div>
@@ -660,7 +660,7 @@
         <div class="step-number">2</div>
         <div>
           <h3>Grant read-only Gmail access</h3>
-          <p>We scan your inbox for receipts, renewal notices, and free trial confirmations. We never read personal emails, and analysis happens locally&mdash;nothing leaves your browser.</p>
+          <p>We scan your inbox for receipts, renewal notices, and free trial confirmations. We never read personal emails, and Gmail content is scanned locally in your browser; only anonymous usage analytics are sent.</p>
         </div>
       </div>
       <div class="step">
@@ -695,13 +695,14 @@
         <ul>
           <li>Unlimited subscriptions</li>
           <li>Everything in Free</li>
-          <li>Free trial alerts</li>
-          <li>Priority support</li>
           <li>Annual: $29.99/yr (save 37%)</li>
         </ul>
         <a class="cta-small" href="https://gumroad.com/l/acaxhv" target="_blank">Get Pro</a>
       </div>
     </div>
+    <p style="margin-top: 14px; font-size: 13px; color: var(--text-secondary);">
+      When you activate Pro, your Gumroad license key is verified with Gumroad.
+    </p>
   </section>
 
   <!-- FAQ -->
@@ -710,7 +711,7 @@
     <div class="faq-item">
       <div class="faq-question">Is it safe to give Trackd access to my Gmail?</div>
       <div class="faq-answer">
-        Trackd requests the <strong>read-only Gmail API scope</strong> (<code style="background:var(--bg);padding:1px 5px;border-radius:3px;">gmail.readonly</code>). We can <em>read</em> email metadata for billing-related messages — but we <strong>cannot</strong> send, delete, or modify any email. The analysis runs <strong>entirely in your browser</strong> — your email data never leaves your computer. You can revoke access instantly from <a href="https://myaccount.google.com/permissions" style="color:var(--accent);">Google's permissions page</a>.
+        Trackd requests the <strong>read-only Gmail API scope</strong> (<code style="background:var(--bg);padding:1px 5px;border-radius:3px;">gmail.readonly</code>). We can <em>read</em> email metadata for billing-related messages — but we <strong>cannot</strong> send, delete, or modify any email. The analysis runs <strong>entirely in your browser</strong> — your Gmail content is scanned locally and never leaves your machine; only anonymous usage analytics are sent. You can revoke access instantly from <a href="https://myaccount.google.com/permissions" style="color:var(--accent);">Google's permissions page</a>.
       </div>
     </div>
     <div class="faq-item">
@@ -722,7 +723,7 @@
     <div class="faq-item">
       <div class="faq-question">What happens to my data?</div>
       <div class="faq-answer">
-        It stays on your device. Subscription detection runs locally in your browser using <code style="background:var(--bg);padding:1px 5px;border-radius:3px;">chrome.storage.local</code>. We never upload your email data, subscriptions, or personal information to any server. No cloud account is required.
+        Your Gmail content is scanned locally in your browser using <code style="background:var(--bg);padding:1px 5px;border-radius:3px;">chrome.storage.local</code>. It is never uploaded to our servers — only anonymous usage analytics are sent. When you activate Pro, your Gumroad license key is verified with Gumroad. No cloud account is required.
       </div>
     </div>
     <div class="faq-item">
