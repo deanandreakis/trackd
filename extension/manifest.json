@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Trackd",
-  "version": "1.0.0",
-  "description": "Find every subscription you're paying for — no bank login required. Scans your Gmail receipts to detect subscriptions.",
+  "version": "1.0.1",
+  "description": "Find every subscription you're paying for \u2014 no bank login required. Scans your Gmail receipts to detect subscriptions.",
   "permissions": [
     "identity",
     "storage",
