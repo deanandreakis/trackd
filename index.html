@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Trackd — Find forgotten subscriptions. No bank login.</title>
+  <title>Trackd: Find forgotten subscriptions. No bank login.</title>
   <meta name="description" content="A Chrome extension that scans your Gmail to find every subscription you're paying for. All processing happens locally in your browser. No Plaid, no bank credentials.">
 
   <!-- Umami self-hosted analytics -->
@@ -552,7 +552,7 @@
       <span class="highlight">Without connecting your bank.</span>
     </h1>
     <p>
-      The average American wastes <strong>$252/year</strong> on unused subscriptions&mdash;up 24% from last year.
+      The average American wastes <strong>$252/year</strong> on unused subscriptions, up 24% from last year.
       Trackd scans your Gmail receipts, finds everything, and helps you cancel what you don't need.
       No bank login. No Plaid. <strong>Your Gmail content is scanned locally in your browser; only anonymous usage analytics are sent.</strong>
     </p>
@@ -571,7 +571,7 @@
     </div>
 
     <a class="cta-btn" href="https://chromewebstore.google.com/detail/trackd/lenaajfmejfgdjjdepbcnpakmakcbkgc" target="_blank">
-      Add to Chrome — <span class="sub">It's free</span>
+      Add to Chrome · <span class="sub">It's free</span>
     </a>
     <div class="cta-note">Free tier: up to 10 subs. Pro: unlimited for $3.99/mo.</div>
 
@@ -598,21 +598,21 @@
         <div class="feature-icon search">🔍</div>
         <div>
           <h3>Finds what you forgot</h3>
-          <p>Netflix, Spotify, SaaS tools, gym memberships, free trials that converted&mdash;if it hit your Gmail, we&rsquo;ll surface it.</p>
+          <p>Netflix, Spotify, SaaS tools, gym memberships, free trials that converted. If it hit your Gmail, we&rsquo;ll surface it.</p>
         </div>
       </div>
       <div class="feature-item">
         <div class="feature-icon globe">🌍</div>
         <div>
           <h3>Works globally</h3>
-          <p>No US-only restriction. Trackd works wherever your email does. Rocket Money is US-only&mdash;we&rsquo;re not.</p>
+          <p>No US-only restriction. Trackd works wherever your email does. Rocket Money is US-only. We are not.</p>
         </div>
       </div>
       <div class="feature-item">
         <div class="feature-icon bell">⏰</div>
         <div>
           <h3>Catches free trials before they charge</h3>
-          <p>Set it and forget it. Trackd alerts you before a free trial converts to paid&mdash;no more &ldquo;I forgot to cancel.&rdquo;</p>
+          <p>Set it and forget it. Trackd alerts you before a free trial converts to paid, so there is no more &ldquo;I forgot to cancel.&rdquo;</p>
         </div>
       </div>
       <div class="feature-item">
@@ -629,13 +629,13 @@
   <section class="privacy">
     <h2>How Trackd protects your privacy</h2>
     <p class="subtitle">
-      We built Trackd for people who want to find forgotten subscriptions&mdash;not for people who want to hand over their data. Here's exactly how it works.
+      We built Trackd for people who want to find forgotten subscriptions, and it is not for people who want to hand over their data. Here's exactly how it works.
     </p>
     <div class="privacy-grid">
       <div class="privacy-item">
         <h3>📧 What Trackd accesses in your Gmail</h3>
         <ul>
-          <li>Billing-related email metadata&nbsp;—&nbsp;sender, subject, date (for receipts, invoices, renewals)</li>
+          <li>Billing-related email metadata: sender, subject, date (for receipts, invoices, renewals)</li>
           <li>Only with your explicit consent via Google's OAuth consent screen</li>
           <li><strong>Never</strong> reads personal emails, contacts, or documents</li>
           <li><strong>Never</strong> sends, deletes, or modifies any email</li>
@@ -648,9 +648,9 @@
       <div class="privacy-item">
         <h3>🏠 Where your data lives</h3>
         <ul>
-          <li>Gmail content is analyzed <strong>entirely in your browser</strong> — only anonymous usage analytics are sent</li>
+          <li>Gmail content is analyzed <strong>entirely in your browser</strong>. Only anonymous usage analytics are sent</li>
           <li>Detected subscriptions are stored locally using <span class="tech-spec">chrome.storage.local</span></li>
-          <li>No cloud account required. No Gmail content is sent to our servers — only anonymous usage analytics.</li>
+          <li>No cloud account required. No Gmail content is sent to our servers. Only anonymous usage analytics are sent.</li>
           <li>You can delete all stored data by uninstalling the extension</li>
         </ul>
       </div>
@@ -658,9 +658,9 @@
       <div class="privacy-item">
         <h3>🔑 You stay in control</h3>
         <ul>
-          <li>Grant access once via Google's OAuth screen — you see exactly what's requested</li>
+          <li>Grant access once via Google's OAuth screen. You see exactly what's requested</li>
           <li>Revoke access at any time from <a href="https://myaccount.google.com/permissions" style="color: var(--accent);">myaccount.google.com/permissions</a></li>
-          <li>No ongoing background sync — Trackd only scans when you ask it to</li>
+          <li>No ongoing background sync. Trackd only scans when you ask it to</li>
           <li>Uninstall the extension and all locally stored data is gone</li>
         </ul>
       </div>
@@ -761,25 +761,25 @@
     <div class="faq-item">
       <div class="faq-question">Is it safe to give Trackd access to my Gmail?</div>
       <div class="faq-answer">
-        Trackd requests the <strong>read-only Gmail API scope</strong> (<code style="background:var(--bg);padding:1px 5px;border-radius:3px;">gmail.readonly</code>). We can <em>read</em> email metadata for billing-related messages — but we <strong>cannot</strong> send, delete, or modify any email. The analysis runs <strong>entirely in your browser</strong> — your Gmail content is scanned locally and never leaves your machine; only anonymous usage analytics are sent. You can revoke access instantly from <a href="https://myaccount.google.com/permissions" style="color:var(--accent);">Google's permissions page</a>.
+        Trackd requests the <strong>read-only Gmail API scope</strong> (<code style="background:var(--bg);padding:1px 5px;border-radius:3px;">gmail.readonly</code>). We can <em>read</em> email metadata for billing-related messages, but we <strong>cannot</strong> send, delete, or modify any email. The analysis runs <strong>entirely in your browser</strong>. Your Gmail content is scanned locally and never leaves your machine; only anonymous usage analytics are sent. You can revoke access instantly from <a href="https://myaccount.google.com/permissions" style="color:var(--accent);">Google's permissions page</a>.
       </div>
     </div>
     <div class="faq-item">
       <div class="faq-question">Is this different from Rocket Money?</div>
       <div class="faq-answer">
-        Yes — fundamentally. Rocket Money requires full bank account access via Plaid, giving it read access to every transaction in your accounts. Trackd only needs read-only Gmail access to billing emails. We can&rsquo;t see your bank balance, transactions, or anything outside billing-related emails. And Rocket Money is US-only — Trackd works globally wherever Gmail does.
+        Yes, fundamentally. Rocket Money requires full bank account access via Plaid, giving it read access to every transaction in your accounts. Trackd only needs read-only Gmail access to billing emails. We can&rsquo;t see your bank balance, transactions, or anything outside billing-related emails. And Rocket Money is US-only. Trackd works globally wherever Gmail does.
       </div>
     </div>
     <div class="faq-item">
       <div class="faq-question">What happens to my data?</div>
       <div class="faq-answer">
-        Your Gmail content is scanned locally in your browser using <code style="background:var(--bg);padding:1px 5px;border-radius:3px;">chrome.storage.local</code>. It is never uploaded to our servers — only anonymous usage analytics are sent. When you activate Pro, your Gumroad license key is verified with Gumroad. No cloud account is required.
+        Your Gmail content is scanned locally in your browser using <code style="background:var(--bg);padding:1px 5px;border-radius:3px;">chrome.storage.local</code>. It is never uploaded to our servers. Only anonymous usage analytics are sent. When you activate Pro, your Gumroad license key is verified with Gumroad. No cloud account is required.
       </div>
     </div>
     <div class="faq-item">
       <div class="faq-question">Does this work outside the US?</div>
       <div class="faq-answer">
-        Yes. As long as you use Gmail, Trackd works anywhere in the world. Rocket Money is US-only&mdash;this is one of the main reasons we built Trackd.
+        Yes. As long as you use Gmail, Trackd works anywhere in the world. Rocket Money is US-only. This is one of the main reasons we built Trackd.
       </div>
     </div>
   </section>
@@ -788,13 +788,13 @@
   <section class="final-cta">
     <h2>Ready to find what you&rsquo;re paying for?</h2>
     <a class="cta-btn" href="https://chromewebstore.google.com/detail/trackd/lenaajfmejfgdjjdepbcnpakmakcbkgc" target="_blank">
-      Add to Chrome — <span class="sub">It's free</span>
+      Add to Chrome · <span class="sub">It's free</span>
     </a>
   </section>
 
   <!-- Footer -->
   <footer class="footer">
-    <p>Trackd &mdash; Built by someone tired of paying for subscriptions they forgot about.</p>
+    <p>Trackd, built by someone tired of paying for subscriptions they forgot about.</p>
     <p style="margin-top: 8px;">
       <a href="/privacy-policy.html">Privacy Policy</a> &middot;
       <a href="mailto:trackd@deanware.com">Contact</a>
