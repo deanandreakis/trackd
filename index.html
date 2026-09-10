@@ -312,6 +312,38 @@
       margin-bottom: 28px;
     }
 
+    .screenshots {
+      padding: 0 0 60px;
+    }
+
+    .screenshots h2 {
+      font-size: 22px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .screenshot-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 18px;
+    }
+
+    .screenshot-grid img {
+      width: 100%;
+      height: auto;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+    }
+
+    .shot-caption {
+      font-size: 13px;
+      color: var(--text-secondary);
+      text-align: center;
+      margin-top: 6px;
+    }
+
     .steps {
       display: flex;
       flex-direction: column;
@@ -666,9 +698,28 @@
         <div class="step-number">3</div>
         <div>
           <h3>See every subscription in one dashboard</h3>
-          <p>Name, price, renewal date, and status&mdash;all in one place. Cancel what you don&rsquo;t need, keep what you use.</p>
+          <p>Name, price, renewal date, and status: all in one place. Cancel what you don&rsquo;t need, keep what you use.</p>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- Screenshots -->
+  <section class="screenshots">
+    <h2>See it in action</h2>
+    <div class="screenshot-grid">
+      <figure>
+        <img src="store_screenshot_1.png" alt="Trackd subscription list view" loading="lazy" />
+        <figcaption class="shot-caption">Every recurring charge in one place</figcaption>
+      </figure>
+      <figure>
+        <img src="store_screenshot_2.png" alt="Trackd subscription details" loading="lazy" />
+        <figcaption class="shot-caption">Name, price, and renewal date at a glance</figcaption>
+      </figure>
+      <figure>
+        <img src="store_screenshot_3.png" alt="Trackd free to Pro upgrade" loading="lazy" />
+        <figcaption class="shot-caption">Free for up to 10 subscriptions, Pro removes the cap</figcaption>
+      </figure>
     </div>
   </section>
 
