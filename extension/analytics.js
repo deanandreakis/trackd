@@ -4,6 +4,9 @@
 const UMAMI_URL = 'https://umami.andreakis.org/api/send';
 const WEBSITE_ID = 'ea08a004-72f5-433f-b35c-9c436d8a5795';
 
+// Derive the version from the manifest — never hardcode it (drifts from manifest.json).
+const USER_AGENT = `Trackd/${chrome.runtime.getManifest().version}`;
+
 let _sessionId = null;
 
 function getSessionId() {
@@ -34,7 +37,7 @@ export async function trackEvent(eventName, eventData = {}) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': 'Trackd/0.1.0',
+        'User-Agent': USER_AGENT,
       },
       body: JSON.stringify(payload),
       keepalive: true,
@@ -64,7 +67,7 @@ export async function trackPageView() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': 'Trackd/0.1.0',
+        'User-Agent': USER_AGENT,
       },
       body: JSON.stringify(payload),
       keepalive: true,

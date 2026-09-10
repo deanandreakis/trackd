@@ -5,6 +5,10 @@ import { trackEvent, trackPageView } from '../analytics.js';
 
 const $ = (id) => document.getElementById(id);
 
+// Render the real version from the manifest (never hardcode it in HTML).
+const appVersion = $('app-version');
+if (appVersion) appVersion.textContent = `v${chrome.runtime.getManifest().version}`;
+
 // State elements
 const authState = $('auth-state');
 const scanningState = $('scanning-state');
