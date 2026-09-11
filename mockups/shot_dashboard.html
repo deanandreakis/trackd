@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><style>
+:root{--bg:#f8f9fb;--surface:#fff;--text:#1a1a2e;--text-secondary:#6b7280;--accent:#2563eb;
+--accent-hover:#1d4ed8;--border:#e5e7eb;--green:#059669;--green-soft:#ecfdf5;
+--accent-soft:#eff6ff;--red:#dc2626;--radius:10px;}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{width:1280px;height:800px;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,'DejaVu Sans',sans-serif;
+background:radial-gradient(1100px 640px at 18% -8%,#e9f1ff 0%,#f7f9fc 55%,#eef2f9 100%);
+color:var(--text);display:flex;align-items:center;justify-content:center;gap:56px;font-size:14px;line-height:1.5;overflow:hidden;}
+.popup-shell{zoom:1.14;flex:0 0 auto;filter:drop-shadow(0 22px 44px rgba(26,26,46,.20)) drop-shadow(0 6px 14px rgba(26,26,46,.10));}
+.popup-frame{background:var(--bg);border:1px solid #dfe3ea;border-radius:14px;overflow:hidden;}
+.popup-chrome{height:26px;background:#eef0f4;border-bottom:1px solid #dfe3ea;display:flex;align-items:center;gap:6px;padding:0 10px;}
+.popup-chrome .b{width:9px;height:9px;border-radius:50%;background:#cdd3dc;}
+.popup-chrome .title{margin-left:6px;font-size:10px;color:#8a94a3;font-weight:600;}
+.popup-container{padding:16px;min-height:400px;}
+.hidden{display:none!important;}
+.header{display:flex;justify-content:space-between;align-items:center;width:100%;}
+.header h1{font-size:18px;font-weight:700;}
+.header h1 .version{font-size:11px;font-weight:400;color:var(--text-secondary);margin-left:6px;}
+.header-actions{display:flex;gap:6px;}
+.btn-small{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:16px;cursor:pointer;}
+.summary{background:var(--accent);color:#fff;border-radius:var(--radius);padding:16px;text-align:center;width:100%;margin-top:12px;}
+.total-label{font-size:12px;opacity:.85;display:block;}
+.total-amount{font-size:28px;font-weight:800;display:block;margin-top:2px;}
+.sub-list{width:100%;display:flex;flex-direction:column;gap:6px;margin-top:12px;}
+.sub-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;display:flex;justify-content:space-between;align-items:center;}
+.sub-item .name{font-weight:600;font-size:13px;}
+.sub-item .amount{font-weight:700;color:var(--text);font-size:14px;}
+.sub-item .meta{font-size:11px;color:var(--text-secondary);}
+.sub-item .left{display:flex;flex-direction:column;gap:2px;}
+.sub-item .right{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:3px;}
+.item-actions{display:flex;gap:6px;justify-content:flex-end;margin-top:4px;}
+.remove-btn{color:var(--red);background:none;border:1px solid var(--border);border-radius:6px;width:22px;height:22px;font-size:12px;line-height:1;display:inline-flex;align-items:center;justify-content:center;}
+.view-email-btn{background:none;border:1px solid var(--border);color:var(--accent);border-radius:6px;padding:2px 6px;font-size:11px;font-weight:600;}
+.set-price-btn{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:600;}
+.review-section{width:100%;margin-top:12px;}
+.review-header{display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:6px;}
+.review-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text-secondary);}
+.review-badge{background:var(--accent);color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 8px;}
+.review-item{border-style:dashed;border-color:var(--border);background:#fefcfb;}
+.review-actions{display:flex;gap:6px;justify-content:flex-end;margin-top:4px;}
+.confirm-btn{color:var(--green);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:2px 8px;font-size:12px;font-weight:700;}
+.dismiss-btn{color:var(--red);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:2px 8px;font-size:12px;font-weight:700;}
+/* settings */
+.settings-overlay{position:absolute;inset:0;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;z-index:100;}
+.settings-modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;width:312px;box-shadow:0 4px 12px rgba(0,0,0,.15);}
+.settings-modal-header{display:flex;align-items:center;margin-bottom:16px;}
+.settings-modal-title{font-size:16px;font-weight:700;}
+.tier-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:100px;background:var(--accent-soft);color:var(--accent);margin-left:auto;margin-right:8px;}
+.settings-divider{border:none;border-top:1px solid var(--border);margin:12px 0;}
+.settings-input{flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg);color:var(--text);font-family:monospace;}
+.upgrade-link{text-align:center;margin-top:12px;}
+.upgrade-link a{font-size:13px;color:var(--accent);text-decoration:none;font-weight:600;}
+.settings-license-row{display:flex;flex-direction:column;gap:6px;}
+.settings-license-row .btn-small{width:100%;padding:7px;}
+.settings-row{display:flex;align-items:center;gap:8px;}
+.slider{flex:1;height:4px;background:var(--border);border-radius:2px;position:relative;}
+.slider .fill{position:absolute;left:0;top:0;height:4px;width:15.8%;background:#c7dbff;border-radius:2px;}
+.slider .thumb{position:absolute;top:50%;left:15.8%;transform:translate(-50%,-50%);width:16px;height:16px;border-radius:50%;background:var(--accent);}
+.settings-value{font-size:14px;font-weight:700;color:var(--accent);min-width:32px;text-align:right;}
+.settings-hint{font-size:11px;color:var(--text-secondary);margin-top:4px;}
+.settings-label{font-size:14px;font-weight:600;display:block;}
+.ghost{opacity:.35;}
+/* caption panel */
+.caption{flex:0 0 360px;max-width:360px;}
+.caption .eyebrow{font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:12px;}
+.caption h2{font-size:30px;line-height:1.22;font-weight:800;letter-spacing:-.01em;color:#111827;margin-bottom:16px;}
+.caption ul{list-style:none;display:flex;flex-direction:column;gap:12px;}
+.caption li{display:flex;gap:10px;align-items:flex-start;font-size:16px;color:#374151;line-height:1.45;}
+.caption li .tick{flex:0 0 auto;width:22px;height:22px;border-radius:50%;background:var(--green-soft);color:var(--green);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;margin-top:1px;}
+.caption .foot{margin-top:22px;font-size:13px;color:#9aa4b2;}
+</style></head>
+<body>
+  <div class="popup-shell"><div class="popup-frame">
+    <div class="popup-chrome"><span class="b"></span><span class="b"></span><span class="b"></span><span class="title">Trackd</span></div>
+    <div class="popup-container"><div class="header"><h1>Trackd <span class="version">v1.0.1</span></h1>
+<div class="header-actions"><button class="btn-small">⚙️</button><button class="btn-small">🔄</button><button class="btn-small">+</button></div></div><div class="summary"><span class="total-label">Monthly total</span><span class="total-amount">$37.41</span></div><div class="sub-list"><div class="sub-item"><div class="left"><span class="name">Hover</span><span class="meta">hosting · auto-detected</span></div>
+<div class="right"><div class="amount"><button class="btn-small set-price-btn">Add price</button></div><span class="meta">active</span>
+<div class="item-actions"><button class="btn-small view-email-btn">📧</button><button class="btn-small remove-btn">✕</button></div></div></div><div class="sub-item"><div class="left"><span class="name">Hulu</span><span class="meta">streaming · auto-detected</span></div>
+<div class="right"><div class="amount">$18.99/mo</div><span class="meta">active</span>
+<div class="item-actions"><button class="btn-small view-email-btn">📧</button><button class="btn-small remove-btn">✕</button></div></div></div><div class="sub-item"><div class="left"><span class="name">Peacock</span><span class="meta">streaming · auto-detected</span></div>
+<div class="right"><div class="amount">$18.42/mo</div><span class="meta">active</span>
+<div class="item-actions"><button class="btn-small view-email-btn">📧</button><button class="btn-small remove-btn">✕</button></div></div></div></div><div class="review-section"><div class="review-header"><span class="review-title">Needs review</span><span class="review-badge">7</span></div><div class="sub-list"><div class="sub-item review-item"><div class="left"><span class="name">Chase</span><span class="meta">Possible subscription · needs review</span></div>
+<div class="right"><span class="meta">$40.00</span><div class="review-actions">
+<button class="view-email-btn">📧</button><button class="confirm-btn">✓</button><button class="dismiss-btn">✕</button></div></div></div></div></div></div>
+  </div></div>
+  <div class="caption"><div class="eyebrow">One dashboard</div>
+<h2>Every recurring charge, in one place.</h2>
+<ul>
+<li><span class="tick">✓</span><span>Monthly total of everything it finds in your billing emails.</span></li>
+<li><span class="tick">✓</span><span>Name, price, and status for each subscription at a glance.</span></li>
+<li><span class="tick">✓</span><span>Possible matches flagged for review before they count.</span></li>
+</ul>
+<div class="foot">Read-only Gmail access. No bank login.</div></div>
+</body></html>
