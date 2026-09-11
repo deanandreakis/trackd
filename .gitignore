@@ -1,3 +1,11 @@
 node_modules/
 .DS_Store
 package-lock.json
+
+# Test-only extension build that contains the manifest "key" field.
+# Never commit this (and never submit it to the Chrome Web Store).
+extension_test/
+trackd-extension-test-keyed.zip
+
+# Local zip backups
+trackd-extension.zip.bak-*
