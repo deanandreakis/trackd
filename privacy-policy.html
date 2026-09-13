@@ -136,7 +136,7 @@
   <a href="/" class="nav-link">&larr; Back to Trackd</a>
 
   <h1>Privacy Policy</h1>
-  <p class="last-updated">Last updated: August 27, 2026</p>
+  <p class="last-updated">Last updated: September 12, 2026</p>
 
   <div class="highlight-box">
     <p><strong>In plain English:</strong> Trackd is built so your email data never leaves your browser. We don't upload, sell, or share your Gmail content. Subscription detection runs locally on your device. You can revoke access at any time. This policy spells out the details below.</p>
@@ -177,9 +177,23 @@
 
   <p>Trackd does not currently operate any cloud servers or databases that store user data. There is no backend API, no user account system, and no persistent connection to any server beyond the initial Gmail API call.</p>
 
-  <h2>4. What we collect (analytics)</h2>
+  <h2>4. How we protect your data</h2>
 
-  <p>We use a self-hosted Umami analytics instance (<code>umami.andreakis.org</code>) to collect anonymous usage statistics about the landing page only. Umami collects:</p>
+  <p>Trackd applies the following data protection mechanisms for the sensitive data it is granted access to:</p>
+
+  <ul>
+    <li><strong>Least privilege by design:</strong> Trackd requests a single, read-only scope (<code>https://www.googleapis.com/auth/gmail.readonly</code>) and no other permission. It cannot send, delete, or modify email, and it never requests access to contacts, calendar, or financial accounts.</li>
+    <li><strong>On-device processing:</strong> Email analysis, merchant detection, and subscription classification run entirely in your browser using client-side JavaScript. No message content is transmitted to or stored on any external server.</li>
+    <li><strong>Local-only storage:</strong> Detected subscription data is stored in <code>chrome.storage.local</code>, which is scoped to the Trackd extension and stays on your device. It is deleted when you uninstall the extension or clear its data.</li>
+    <li><strong>Encryption in transit:</strong> Communication with Google's Gmail API and with Gumroad (for license verification) is protected by HTTPS/TLS. No plaintext data is transmitted.</li>
+    <li><strong>No backend, no account, no cloud database:</strong> Trackd operates no server-side storage of user data. There is no user account system, so there are no credentials or server-side profiles to protect.</li>
+    <li><strong>Revocable, transparent access:</strong> You can revoke Trackd's Gmail access at any time from <a href="https://myaccount.google.com/permissions" style="color: var(--accent);" target="_blank">myaccount.google.com/permissions</a>, and you control what Trackd can see.</li>
+    <li><strong>Access controls and retention limits:</strong> Trackd limits each scan to a bounded number of messages you configure, and it analyzes only messages it identifies as billing-related. It does not persist or access messages beyond what is needed for a scan.</li>
+  </ul>
+
+  <h2>5. What we collect (analytics)</h2>
+
+  <p>We use a self-hosted Umami analytics instance (<code>umami.andreakis.org</code>) to collect anonymous usage statistics about the landing page. Umami collects:</p>
 
   <ul>
     <li>Page views and referrer URLs</li>
@@ -187,11 +201,13 @@
     <li>Country-level location (approximate, IP-based)</li>
   </ul>
 
-  <p>Umami does not use cookies and does not collect personally identifiable information. No analytics are collected from the Chrome extension itself (if and when it is installed).</p>
+  <p>Umami does not use cookies and does not collect personally identifiable information.</p>
+
+  <p>The Chrome extension also sends anonymized usage events (for example, that a scan ran or that a subscription was confirmed) to the same self-hosted Umami instance. These events contain only usage statistics (such as the event type and a randomly generated session identifier) and never include email content, message metadata, subscription data, or any personally identifiable information. No email content or subscription data is ever transmitted to analytics.</p>
 
   <p>When you submit your email to the waitlist form, it is sent to Netlify Forms for the sole purpose of contacting you when Trackd launches. Your email address will not be sold, shared, or used for any purpose other than Trackd launch notifications and occasional product updates (with an unsubscribe option).</p>
 
-  <h2>5. Data retention and deletion</h2>
+  <h2>6. Data retention and deletion</h2>
 
   <ul>
     <li><strong>Local data:</strong> All locally stored subscription data is deleted when you uninstall the Trackd extension from Chrome. You can also clear extension data from Chrome's extension settings at any time.</li>
@@ -199,7 +215,7 @@
     <li><strong>Gmail access:</strong> You can revoke Trackd's Gmail access at any time from <a href="https://myaccount.google.com/permissions" style="color: var(--accent);" target="_blank">myaccount.google.com/permissions</a>.</li>
   </ul>
 
-  <h2>6. Third-party services</h2>
+  <h2>7. Third-party services</h2>
 
   <p>Trackd uses the following third-party services:</p>
 
@@ -209,7 +225,7 @@
     <li><strong>Umami</strong>: Self-hosted, privacy-friendly analytics. No user data is shared with third parties.</li>
   </ul>
 
-  <h2>7. Chrome Web Store compliance</h2>
+  <h2>8. Chrome Web Store compliance</h2>
 
   <p>Trackd complies with Google's <a href="https://developer.chrome.com/docs/webstore/program-policies/" style="color: var(--accent);">Chrome Web Store Program Policies</a>, including the User Data Privacy requirements. Specifically:</p>
 
@@ -221,11 +237,11 @@
     <li>Users can revoke access and delete data as described above</li>
   </ul>
 
-  <h2>8. Changes to this policy</h2>
+  <h2>9. Changes to this policy</h2>
 
   <p>If this policy changes materially, we will update the "Last updated" date at the top and notify waitlist members by email. We will never reduce your privacy rights without explicit consent.</p>
 
-  <h2>9. Contact</h2>
+  <h2>10. Contact</h2>
 
   <p>Questions about this policy? Reach out:</p>
   <p>
