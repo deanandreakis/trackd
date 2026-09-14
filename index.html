@@ -636,10 +636,9 @@
       </div>
     </div>
 
-    <form name="trackd-test-group" method="POST" data-netlify="true" netlify-honeypot="bot-field" class="test-form" action="/#cta" data-netlify-recaptcha="false">
+    <form name="trackd-test-group" method="POST" data-netlify="true" class="test-form" data-netlify-recaptcha="false">
       <p class="test-form-intro">Be one of the first to try Trackd. Enter your email to join the testing group, and we'll add you as a test user and email you install instructions.</p>
       <input type="hidden" name="form-name" value="trackd-test-group" />
-      <div hidden aria-hidden="true"><input name="bot-field" /></div>
       <div class="test-form-row">
         <input type="email" name="email" id="test-email" placeholder="you@example.com" required autocomplete="email" />
         <button type="submit" class="test-form-btn">Join the testing group</button>
@@ -888,12 +887,15 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: params,
-      }).catch(function(){});
-      var okMsg = document.getElementById('test-form-success');
-      if (okMsg) {
-        form.style.display = 'none';
-        okMsg.style.display = 'block';
-      }
+      }).then(function (res) {
+        var okMsg = document.getElementById('test-form-success');
+        if (okMsg) {
+          form.style.display = 'none';
+          okMsg.style.display = 'block';
+        }
+      }).catch(function () {
+        // leave the form visible so the visitor can retry
+      });
     }
   });
 </script>
