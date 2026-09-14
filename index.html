@@ -643,18 +643,18 @@
       </div>
     </div>
 
-    <form name="trackd-test-group" method="POST" data-netlify="true" class="test-form" data-netlify-recaptcha="false" netlify-honeypot="bot-field">
+    <!-- Removed data-netlify-recaptcha="false" -->
+    <form name="trackd-test-group" method="POST" data-netlify="true" class="test-form" netlify-honeypot="bot-field">
       <p class="test-form-intro">Be one of the first to try Trackd. Enter your email to join the testing group, and we'll add you as a test user and email you install instructions.</p>
       <input type="hidden" name="form-name" value="trackd-test-group" />
-      <p style="display:none"><label>Don't fill this out: <input name="bot-field" /></label></p>
+      <!-- This hidden field matches the netlify-honeypot attribute above -->
+      <p style="display:none;"><label>Don't fill this out: <input name="bot-field" /></label></p>
       <div class="test-form-row">
         <input type="email" name="email" id="test-email" placeholder="you@example.com" required autocomplete="email" />
         <button type="submit" class="test-form-btn">Join the testing group</button>
       </div>
       <p class="test-form-note">We'll email you to confirm, once you've been added. No spam, unsubscribe anytime.</p>
     </form>
-    <div class="test-form-success" id="test-form-success">Thanks! You've requested to join the testing group. Check your email for a confirmation from us.</div>
-    <div class="test-form-error" id="test-form-error">Your submission wasn't recorded — this can happen on local previews (Netlify Forms only works on the live trackd-deanware.netlify.app page). Please try again there.</div>
 
     <!-- (empty commit trigger) test-form marker -->
 
