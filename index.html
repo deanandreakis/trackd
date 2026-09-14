@@ -642,6 +642,7 @@
 
     <form name="trackd-test-group" method="POST" data-netlify="true" netlify-honeypot="bot-field" class="test-form" action="/#cta" data-netlify-recaptcha="false">
       <p class="test-form-intro">Be one of the first to try Trackd. Enter your email to join the testing group, and we'll add you as a test user and email you install instructions.</p>
+      <input type="hidden" name="form-name" value="trackd-test-group" />
       <div hidden aria-hidden="true"><input name="bot-field" /></div>
       <div class="test-form-row">
         <input type="email" name="email" id="test-email" placeholder="you@example.com" required autocomplete="email" />
@@ -887,7 +888,13 @@
     var form = e.target;
     if (form && form.name === 'trackd-test-group') {
       e.preventDefault();
-      fetch('/', { method: 'POST', body: new FormData(form) }).catch(function(){});
+      var formData = new FormData(form);
+      var params = new URLSearchParams(formData).toString();
+      fetch('/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params,
+      }).catch(function(){});
       var okMsg = document.getElementById('test-form-success');
       if (okMsg) {
         form.style.display = 'none';
