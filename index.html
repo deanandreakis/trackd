@@ -888,43 +888,36 @@
 </div>
 
 <script>
-  // Submit the test-group signup to Netlify (records the email) and show a confirmation.
-  // Success is only shown when Netlify actually handled the submission (it answers a
-  // valid form POST with a redirect to /). On local previews / missing detection the
-  // server just returns the page HTML, which we treat as NOT recorded.
-  document.addEventListener('submit', function (e) {
-    var form = e.target;
-    if (form && form.name === 'trackd-test-group') {
-      e.preventDefault();
-      var submitBtn = form.querySelector('button[type="submit"]');
-      if (submitBtn) submitBtn.disabled = true;
-      var formData = new FormData(form);
-      var params = new URLSearchParams(formData).toString();
-      fetch('/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params,
-      }).then(function (res) {
-        return res.text().then(function (text) {
-          var okMsg = document.getElementById('test-form-success');
-          var failMsg = document.getElementById('test-form-error');
-          // Netlify's handler answers an accepted submission with a redirect (res.redirected).
-          var recorded = res.ok && (res.redirected || text.indexOf('<!DOCTYPE') === -1);
-          if (recorded && okMsg) {
-            form.style.display = 'none';
-            okMsg.style.display = 'block';
-          } else if (failMsg) {
-            failMsg.style.display = 'block';
-          }
-        });
-      }).catch(function () {
-        var failMsg = document.getElementById('test-form-error');
-        if (failMsg) failMsg.style.display = 'block';
-      }).finally(function () {
-        if (submitBtn) submitBtn.disabled = false;
-      });
-    }
-  });
+const form = document.querySelector(".test-form");
+const successMessage = document.getElementById("test-form-success");
+const errorMessage = document.getElementById("test-form-error");
+
+form.addEventListener("submit", (e) => {
+  e.preventDefault();
+
+  const formData = new FormData(form);
+
+  fetch("/", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(formData).toString(),
+  })
+    .then((response) => {
+      if (response.ok) {
+        // Hide form and show success message
+        form.style.display = "none";
+        successMessage.style.display = "block";
+        errorMessage.style.display = "none";
+      } else {
+        throw new Error("Form submission failed");
+      }
+    })
+    .catch((error) => {
+      // Show error message
+      errorMessage.style.display = "block";
+      successMessage.style.display = "none";
+    });
+});
 </script>
 
 </body>
