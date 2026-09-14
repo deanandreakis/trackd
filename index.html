@@ -151,6 +151,67 @@
       opacity: 0.9;
     }
 
+    /* ---- Test group signup form ---- */
+    .test-form {
+      max-width: 520px;
+      margin: 0 auto 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      text-align: left;
+    }
+    .test-form-intro {
+      font-size: 14px;
+      color: var(--text);
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+    .test-form-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .test-form-row input[type="email"] {
+      flex: 1 1 200px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      color: var(--text);
+      outline: none;
+    }
+    .test-form-row input[type="email"]:focus {
+      border-color: var(--accent);
+    }
+    .test-form-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .test-form-btn:hover { background: var(--accent-hover); }
+    .test-form-note {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 10px;
+    }
+    .test-form-success {
+      display: none;
+      color: var(--green);
+      font-size: 14px;
+      font-weight: 600;
+      text-align: center;
+      padding: 12px;
+    }
+    body.form-sent .test-form { display: none; }
+    body.form-sent .test-form-success { display: block; }
+
     /* ---- Trust Bar ---- */
     .trust-bar {
       display: flex;
@@ -578,7 +639,19 @@
     <div class="cta-btn coming-soon">
       Fixed version coming soon
     </div>
-    <div class="cta-note">We are rolling out a fix, and the store release is temporarily paused. Check back soon to install. Free tier: up to 10 subs. Pro: unlimited for $3.99/mo.</div>
+
+    <form name="trackd-test-group" method="POST" data-netlify="true" netlify-honeypot="bot-field" class="test-form" action="/#cta" data-netlify-recaptcha="false">
+      <p class="test-form-intro">Be one of the first to try Trackd. Enter your email to join the testing group, and we'll add you as a test user and email you install instructions.</p>
+      <div hidden aria-hidden="true"><input name="bot-field" /></div>
+      <div class="test-form-row">
+        <input type="email" name="email" id="test-email" placeholder="you@example.com" required autocomplete="email" />
+        <button type="submit" class="test-form-btn">Join the testing group</button>
+      </div>
+      <p class="test-form-note">We'll email you to confirm, once you've been added. No spam, unsubscribe anytime.</p>
+    </form>
+    <div class="test-form-success" id="test-form-success">Thanks! You've requested to join the testing group. Check your email for a confirmation from us.</div>
+
+    <div class="cta-note">Free tier: up to 10 subs. Pro: unlimited for $3.99/mo.</div>
 
     <div class="trust-bar">
       <span class="trust-pill"><span class="icon">🔒</span> No bank credentials</span>
@@ -807,6 +880,22 @@
   </footer>
 
 </div>
+
+<script>
+  // Submit the test-group signup to Netlify (records the email) and show a confirmation.
+  document.addEventListener('submit', function (e) {
+    var form = e.target;
+    if (form && form.name === 'trackd-test-group') {
+      e.preventDefault();
+      fetch('/', { method: 'POST', body: new FormData(form) }).catch(function(){});
+      var okMsg = document.getElementById('test-form-success');
+      if (okMsg) {
+        form.style.display = 'none';
+        okMsg.style.display = 'block';
+      }
+    }
+  });
+</script>
 
 </body>
 </html>
