@@ -211,6 +211,13 @@
     }
     body.form-sent .test-form { display: none; }
     body.form-sent .test-form-success { display: block; }
+    .test-form-error {
+      display: none;
+      color: #b91c1c;
+      font-size: 13px;
+      text-align: center;
+      padding: 10px;
+    }
 
     /* ---- Trust Bar ---- */
     .trust-bar {
@@ -646,6 +653,7 @@
       <p class="test-form-note">We'll email you to confirm, once you've been added. No spam, unsubscribe anytime.</p>
     </form>
     <div class="test-form-success" id="test-form-success">Thanks! You've requested to join the testing group. Check your email for a confirmation from us.</div>
+    <div class="test-form-error" id="test-form-error">Your submission wasn't recorded — this can happen on local previews (Netlify Forms only works on the live trackd-deanware.netlify.app page). Please try again there.</div>
 
     <!-- (empty commit trigger) test-form marker -->
 
@@ -879,10 +887,15 @@
 
 <script>
   // Submit the test-group signup to Netlify (records the email) and show a confirmation.
+  // Success is only shown when Netlify actually handled the submission (it answers a
+  // valid form POST with a redirect to /). On local previews / missing detection the
+  // server just returns the page HTML, which we treat as NOT recorded.
   document.addEventListener('submit', function (e) {
     var form = e.target;
     if (form && form.name === 'trackd-test-group') {
       e.preventDefault();
+      var submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
       var formData = new FormData(form);
       var params = new URLSearchParams(formData).toString();
       fetch('/', {
@@ -890,13 +903,23 @@
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: params,
       }).then(function (res) {
-        var okMsg = document.getElementById('test-form-success');
-        if (okMsg) {
-          form.style.display = 'none';
-          okMsg.style.display = 'block';
-        }
+        return res.text().then(function (text) {
+          var okMsg = document.getElementById('test-form-success');
+          var failMsg = document.getElementById('test-form-error');
+          // Netlify's handler answers an accepted submission with a redirect (res.redirected).
+          var recorded = res.ok && (res.redirected || text.indexOf('<!DOCTYPE') === -1);
+          if (recorded && okMsg) {
+            form.style.display = 'none';
+            okMsg.style.display = 'block';
+          } else if (failMsg) {
+            failMsg.style.display = 'block';
+          }
+        });
       }).catch(function () {
-        // leave the form visible so the visitor can retry
+        var failMsg = document.getElementById('test-form-error');
+        if (failMsg) failMsg.style.display = 'block';
+      }).finally(function () {
+        if (submitBtn) submitBtn.disabled = false;
       });
     }
   });
