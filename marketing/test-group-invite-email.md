@@ -58,3 +58,28 @@ Trackd
   that it stays clickable before you hit send.
 - Writing rules held throughout the email body: no em-dashes, and no "it is not X, it is Y"
   style contrasts. Assertions are stated plainly.
+
+---
+
+## Optional add-on: fallback paragraph (only include if you want it)
+
+Context: the live store build is v1.0.0, which carries a known OAuth-connect bug. v1.0.1 is
+built and held pending Google's OAuth client review. Until then a tester can install from the
+store and still fail to connect Gmail.
+
+Two ways to handle testers who hit that. Pick one, do not send both.
+
+**Option A, keep the default email as-is.** The existing failure ask ("stalls or sends you
+back to the same screen") already catches the symptom, and you resolve the case in the reply
+thread. Best if you expect most testers to be fine and want the first email short.
+
+**Option B, add this paragraph** directly after the "Connect Gmail" paragraph, before the free
+tier line:
+
+    If the store link will not install for you, or the Gmail connect step keeps failing, reply
+    and tell me. I can send you a test build you load directly into Chrome instead, and we will
+    get you running that way.
+
+Option B sets the expectation up front and saves a round trip for anyone who needs the local
+build. It also risks nudging testers toward the manual path when the store path would have
+worked, so only add it if the OAuth review is likely to drag on.
