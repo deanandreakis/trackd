@@ -704,17 +704,18 @@
         <button type="submit" class="signup-form__btn" id="signup-submit">Email me the install link</button>
       </div>
       <p class="signup-form__note" id="signup-note">Free tier included. No bank login.</p>
-      <!-- Consent block. Field names match the compliance spec (task t_bf47c595):
-           beta_consent is REQUIRED and starts unticked; marketing_consent is a
-           separate, optional opt-in so marketing is never bundled with the beta. -->
+      <!-- Consent block. Field names match the compliance spec (task t_bf47c595,
+           runbook docs/beta-email-consent-runbook.md part 1); labels use its
+           recommended wording. beta_consent is REQUIRED and starts unticked;
+           marketing_consent is a separate, optional opt-in. Neither is pre-ticked. -->
       <div class="signup-consent">
         <label class="signup-consent__row">
           <input type="checkbox" name="beta_consent" id="beta-consent" required />
-          <span>Email me the Trackd install instructions and beta updates, and I accept the <a href="/privacy-policy">Privacy Policy</a>.</span>
+          <span>Send me the Trackd install instructions and messages about the beta testing group. I have read the <a href="/privacy-policy">Privacy Policy</a>.</span>
         </label>
         <label class="signup-consent__row">
           <input type="checkbox" name="marketing_consent" id="marketing-consent" />
-          <span>Also send me occasional Trackd tips and product news. Optional.</span>
+          <span>Optional: also send me occasional Trackd product news and tips. You can unsubscribe at any time by replying to any email. See the <a href="/privacy-policy">Privacy Policy</a>.</span>
         </label>
       </div>
       <!-- Honeypot: matches netlify-honeypot="bot-field". Hidden off-screen; a real user never fills it. -->
