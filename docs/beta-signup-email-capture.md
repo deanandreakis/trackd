@@ -37,6 +37,16 @@ notification emails, if one is configured (Forms → Submission notifications).
   filled, the client pretends to succeed and Netlify discards the submission.
 - Native HTML5 validation: `type="email" required` plus CSRF-free same-origin POST.
 
+## Note on the served HTML (not a bug)
+
+`curl https://trackd.deanware.com/` shows a `<form>` tag with **no**
+`data-netlify="true"` and **no** `netlify-honeypot`, and single-quoted attributes.
+That is Netlify's own form post-processing re-serializing the tag on the way out.
+The attributes are present in the source (`index.html`) and were seen when Netlify
+built the form definition, so form registration, the server-side honeypot and the
+`form-name` all keep working. A POST to `/` with `form-name=trackd-test-group`
+returns 200 and is recorded. Do not "fix" the served tag.
+
 ## Consent (field names owned by the compliance task)
 
 - `beta_consent` — **required**, starts unticked. Blocks submission until ticked.
