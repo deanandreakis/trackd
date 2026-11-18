@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Privacy Policy | Trackd</title>
-  <meta name="description" content="Trackd privacy policy. We built a subscription tracker that never uploads your email data. All processing happens locally in your browser.">
+  <meta name="description" content="Trackd privacy policy. We built a subscription tracker that never uploads your email data. All processing happens locally in your browser." />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -26,107 +26,61 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    .container {
-      max-width: 700px;
-      margin: 0 auto;
-      padding: 48px 24px 80px;
-    }
+    .container { max-width: 760px; margin: 0 auto; padding: 48px 24px 80px; }
 
-    h1 {
-      font-size: 32px;
-      font-weight: 800;
-      margin-bottom: 8px;
-    }
+    h1 { font-size: 32px; font-weight: 800; margin-bottom: 8px; }
 
-    .last-updated {
-      color: var(--text-secondary);
-      font-size: 14px;
-      margin-bottom: 32px;
-    }
+    .last-updated { color: var(--text-secondary); font-size: 14px; margin-bottom: 32px; }
 
-    h2 {
-      font-size: 20px;
-      font-weight: 700;
-      margin: 36px 0 12px;
-    }
+    h2 { font-size: 20px; font-weight: 700; margin: 36px 0 12px; }
 
-    h3 {
-      font-size: 16px;
-      font-weight: 600;
-      margin: 24px 0 8px;
-    }
+    h3 { font-size: 16px; font-weight: 600; margin: 24px 0 8px; }
 
-    p {
-      font-size: 15px;
-      color: var(--text-secondary);
-      margin-bottom: 14px;
-    }
+    p { font-size: 15px; color: var(--text-secondary); margin-bottom: 14px; }
 
-    ul {
-      list-style: none;
-      padding: 0;
-      margin-bottom: 14px;
-    }
+    ul { list-style: none; padding: 0; margin-bottom: 14px; }
 
-    li {
-      font-size: 15px;
-      color: var(--text-secondary);
-      padding: 4px 0;
-      padding-left: 20px;
-      position: relative;
-    }
+    li { font-size: 15px; color: var(--text-secondary); padding: 4px 0 4px 20px; position: relative; }
 
-    li::before {
-      content: "—";
-      position: absolute;
-      left: 0;
-      color: var(--text-secondary);
-    }
+    li::before { content: "—"; position: absolute; left: 0; color: var(--text-secondary); }
 
-    .highlight-box {
+    ol.numbered { color: var(--text-secondary); font-size: 15px; margin-bottom: 14px; padding-left: 22px; }
+    ol.numbered li { padding-left: 4px; }
+    ol.numbered li::before { content: ""; }
+
+    .highlight-box, .consent-box {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 20px 24px;
       margin: 24px 0;
     }
+    .highlight-box p:last-child, .consent-box p:last-child { margin-bottom: 0; }
 
-    .highlight-box p:last-child {
-      margin-bottom: 0;
-    }
+    .consent-box { border-left: 4px solid var(--accent); }
 
-    .nav-link {
-      display: inline-block;
-      margin-bottom: 32px;
-      color: var(--accent);
-      text-decoration: none;
-      font-size: 14px;
-      font-weight: 500;
-    }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 14px; }
 
-    .nav-link:hover {
-      text-decoration: underline;
-    }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text-secondary); vertical-align: top; }
 
-    code {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 1px 6px;
-      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-      font-size: 13px;
-      color: var(--text);
-    }
+    th { color: var(--text); font-weight: 600; background: var(--surface); }
 
-    hr {
-      border: none;
-      border-top: 1px solid var(--border);
-      margin: 40px 0;
-    }
+    .table-wrap { overflow-x: auto; }
+
+    .nav-link, a { color: var(--accent); }
+    .nav-link { display: inline-block; margin-bottom: 32px; text-decoration: none; font-size: 14px; font-weight: 500; }
+    .nav-link:hover { text-decoration: underline; }
+
+    code { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 13px; color: var(--text); }
+
+    hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+    .disclaimer { font-size: 13px; color: var(--text-secondary); font-style: italic; }
 
     @media (max-width: 540px) {
       .container { padding: 32px 20px 60px; }
       h1 { font-size: 26px; }
+      th, td { padding: 8px; }
     }
   </style>
 </head>
@@ -136,13 +90,40 @@
   <a href="/" class="nav-link">&larr; Back to Trackd</a>
 
   <h1>Privacy Policy</h1>
-  <p class="last-updated">Last updated: September 12, 2026</p>
+  <p class="last-updated">Last updated: [PUBLISH DATE — set to the deploy date] &middot; Version 2.0 (supersedes the 12 September 2026 version)</p>
 
   <div class="highlight-box">
-    <p><strong>In plain English:</strong> Trackd is built so your email data never leaves your browser. We don't upload, sell, or share your Gmail content. Subscription detection runs locally on your device. You can revoke access at any time. This policy spells out the details below.</p>
+    <p><strong>In plain English:</strong> Trackd is built so your email data never leaves your browser. We don't upload, sell, or share your Gmail content. Subscription detection runs locally on your device. You can revoke access at any time. If you join the beta testing group, we keep your email address for that purpose only, and you can ask us to delete it at any time. This policy spells out the details below.</p>
   </div>
 
-  <h2>1. What data Trackd accesses</h2>
+  <h2>0. Who we are (data controller)</h2>
+
+  <p>Trackd ("we", "us") is an independent software project operated by <strong>[LEGAL NAME / SOLE TRADER NAME — TODO before publishing]</strong>, <strong>[POSTAL ADDRESS — TODO: CAN-SPAM requires a valid physical postal address in every marketing email; a registered PO box or virtual business address is acceptable]</strong>, contact: <a href="mailto:trackd@deanware.com">trackd@deanware.com</a>.</p>
+
+  <p>We are the <strong>controller</strong> of the personal data described in this policy. Where we use third-party services (section 7), those providers act as our <strong>processors</strong> except where noted.</p>
+
+  <p><strong>Products covered:</strong> the Trackd Chrome extension and the website at <code>trackd.deanware.com</code> (including the beta signup form).</p>
+
+  <h2>1. Summary table</h2>
+
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>What</th><th>Which product</th><th>Why we have it</th><th>How long we keep it</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Email address</td><td>Website beta signup</td><td>Add you to the testing group and send install instructions</td><td>Until you leave the beta / ask for deletion, and no longer than <strong>12 months</strong> after the beta ends</td></tr>
+      <tr><td>Email address</td><td>Beta signup, optional marketing tick</td><td>Occasional product updates, only if you opt in</td><td>Until you unsubscribe or ask for deletion</td></tr>
+      <tr><td>IP address, user-agent, timestamp</td><td>Website beta signup</td><td>Spam filtering and abuse prevention (added automatically by Netlify)</td><td>Deleted with the form submission (section 6)</td></tr>
+      <tr><td>Page views, referrer, browser/OS/device, country</td><td>Website analytics</td><td>Measure whether our promotion is working</td><td>Aggregated; no individual profile is built</td></tr>
+      <tr><td>Anonymous usage events</td><td>Extension</td><td>Confirm features work and measure reliability</td><td>Aggregated; no email content or identifiers</td></tr>
+      <tr><td>Gmail message metadata and content</td><td>Extension</td><td>Detect subscriptions <strong>on your device</strong></td><td>Never leaves your device; deleted on uninstall</td></tr>
+      <tr><td>Email address + licence key</td><td>Pro purchase (Gumroad)</td><td>Verify your Pro licence</td><td>Held by Gumroad under their own policy</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>2. What the extension accesses</h2>
 
   <p>Trackd requests read-only access to your Gmail account via Google's OAuth 2.0 API. Specifically, we request the <code>https://www.googleapis.com/auth/gmail.readonly</code> scope. This allows Trackd to:</p>
 
@@ -160,38 +141,32 @@
     <li>Access your bank accounts, payment credentials, or financial accounts</li>
   </ul>
 
-  <h2>2. How your data is processed</h2>
+  <h2>3. How your data is processed</h2>
 
-  <p>All email analysis and subscription detection runs <strong>entirely in your browser</strong> using client-side JavaScript. Here's the data flow:</p>
+  <p>All email analysis and subscription detection runs <strong>entirely in your browser</strong> using client-side JavaScript:</p>
 
-  <ol style="color: var(--text-secondary); font-size: 15px; margin-bottom: 14px; padding-left: 20px;">
-    <li style="margin-bottom: 8px;">Trackd fetches a list of recent billing-related emails from Gmail using the read-only API</li>
-    <li style="margin-bottom: 8px;">The extension analyzes sender names, subject lines, and email patterns locally in your browser to detect known subscription merchants</li>
-    <li style="margin-bottom: 8px;">Detected subscriptions are stored using <code>chrome.storage.local</code>. This is browser-local storage that stays on your device</li>
-    <li style="margin-bottom: 8px;">Your email content is never transmitted to any external server, including ours</li>
+  <ol class="numbered">
+    <li>Trackd fetches a list of recent billing-related emails from Gmail using the read-only API.</li>
+    <li>The extension analyses sender names, subject lines, and email patterns locally in your browser to detect known subscription merchants.</li>
+    <li>Detected subscriptions are stored using <code>chrome.storage.local</code> — browser-local storage that stays on your device.</li>
+    <li>Your email content is never transmitted to any external server, including ours.</li>
   </ol>
 
-  <h2>3. Where your data lives</h2>
+  <h2>4. What the beta signup collects (website)</h2>
 
-  <p>Subscription data (service names, prices, renewal dates) is stored locally in your browser's <code>chrome.storage.local</code>. This storage is scoped to the Trackd extension and does not sync to any cloud service unless you explicitly enable optional cloud sync in the future.</p>
-
-  <p>Trackd does not currently operate any cloud servers or databases that store user data. There is no backend API, no user account system, and no persistent connection to any server beyond the initial Gmail API call.</p>
-
-  <h2>4. How we protect your data</h2>
-
-  <p>Trackd applies the following data protection mechanisms for the sensitive data it is granted access to:</p>
+  <p>When you submit the form on <code>trackd.deanware.com</code> "Join the testing group":</p>
 
   <ul>
-    <li><strong>Least privilege by design:</strong> Trackd requests a single, read-only scope (<code>https://www.googleapis.com/auth/gmail.readonly</code>) and no other permission. It cannot send, delete, or modify email, and it never requests access to contacts, calendar, or financial accounts.</li>
-    <li><strong>On-device processing:</strong> Email analysis, merchant detection, and subscription classification run entirely in your browser using client-side JavaScript. No message content is transmitted to or stored on any external server.</li>
-    <li><strong>Local-only storage:</strong> Detected subscription data is stored in <code>chrome.storage.local</code>, which is scoped to the Trackd extension and stays on your device. It is deleted when you uninstall the extension or clear its data.</li>
-    <li><strong>Encryption in transit:</strong> Communication with Google's Gmail API and with Gumroad (for license verification) is protected by HTTPS/TLS. No plaintext data is transmitted.</li>
-    <li><strong>No backend, no account, no cloud database:</strong> Trackd operates no server-side storage of user data. There is no user account system, so there are no credentials or server-side profiles to protect.</li>
-    <li><strong>Revocable, transparent access:</strong> You can revoke Trackd's Gmail access at any time from <a href="https://myaccount.google.com/permissions" style="color: var(--accent);" target="_blank">myaccount.google.com/permissions</a>, and you control what Trackd can see.</li>
-    <li><strong>Access controls and retention limits:</strong> Trackd limits each scan to a bounded number of messages you configure, and it analyzes only messages it identifies as billing-related. It does not persist or access messages beyond what is needed for a scan.</li>
+    <li><strong>The email address you type in.</strong> We use it to (a) add you to the closed testing group, (b) email you install/download instructions, and (c) contact you about the testing group itself. If — and only if — you tick the optional marketing box, we also use it to send occasional Trackd product updates.</li>
+    <li><strong>Submission metadata added by our form host (Netlify):</strong> your IP address, browser user-agent, and the submission timestamp. We do not use this for profiling; it exists so that spam and abuse can be filtered and investigated.</li>
+    <li><strong>What we do NOT collect on the website:</strong> no name, no phone number, no payment data, no Gmail data, no account password. There is no Trackd account system.</li>
   </ul>
 
-  <h2>5. What we collect (analytics)</h2>
+  <p>We do not use the beta email list for advertising, we do not sell it, and we do not share it with anyone except the processors named in section 7.</p>
+
+  <p><strong>The install-instructions email itself</strong> is sent on our behalf through our email provider (Resend) from our Netlify form handler. Your address is passed to that provider only so the message can be delivered; it is not added to any third-party mailing list.</p>
+
+  <h2>5. Analytics</h2>
 
   <p>We use a self-hosted Umami analytics instance (<code>umami.andreakis.org</code>) to collect anonymous usage statistics about the landing page. Umami collects:</p>
 
@@ -201,54 +176,133 @@
     <li>Country-level location (approximate, IP-based)</li>
   </ul>
 
-  <p>Umami does not use cookies and does not collect personally identifiable information.</p>
+  <p>Umami does not use cookies and does not build a profile of you; the data is aggregated statistics.</p>
 
-  <p>The Chrome extension also sends anonymized usage events (for example, that a scan ran or that a subscription was confirmed) to the same self-hosted Umami instance. These events contain only usage statistics (such as the event type and a randomly generated session identifier) and never include email content, message metadata, subscription data, or any personally identifiable information. No email content or subscription data is ever transmitted to analytics.</p>
+  <p>The Chrome extension also sends anonymised usage events (for example, that a scan ran or that a subscription was confirmed) to the same self-hosted Umami instance. These events contain only usage statistics (such as the event type and a randomly generated session identifier) and never include email content, message metadata, subscription data, or any personally identifiable information.</p>
 
-  <p>When you enter your email on the landing page to join the Trackd testing group, it is used solely to add you as a test user and to send you install instructions and confirmation that you have been added. Your email will not be sold, shared, or used for any purpose other than Trackd testing-group communications and occasional product updates (with an unsubscribe option).</p>
+  <p><strong>Cookies:</strong> the website sets no cookies of its own, and neither Umami nor the beta signup form requires a cookie. We therefore show no cookie banner. If we ever add a cookie-based service, we will add a consent banner first.</p>
 
-  <h2>6. Data retention and deletion</h2>
+  <h2>6. Retention and deletion</h2>
 
-  <ul>
-    <li><strong>Local data:</strong> All locally stored subscription data is deleted when you uninstall the Trackd extension from Chrome. You can also clear extension data from Chrome's extension settings at any time.</li>
-    <li><strong>Testing-group email:</strong> Your email address is retained so we can add you as a test user and contact you about the testing group. You can request deletion at any time by emailing <a href="mailto:trackd@deanware.com" style="color: var(--accent);">trackd@deanware.com</a>, and you can unsubscribe from testing-group messages at any time.</li>
-    <li><strong>Gmail access:</strong> You can revoke Trackd's Gmail access at any time from <a href="https://myaccount.google.com/permissions" style="color: var(--accent);" target="_blank">myaccount.google.com/permissions</a>.</li>
-  </ul>
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Data</th><th>Retention</th><th>How it is deleted</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Beta signup email</td><td>While the beta runs and a maximum of <strong>12 months after it ends</strong>, or sooner on request</td><td>Deleted from the Netlify Forms submission store; also removed from any mailing list</td></tr>
+      <tr><td>Beta signup metadata (IP, user-agent)</td><td>Stored with the submission; deleted with it</td><td>Same as above — not stored separately</td></tr>
+      <tr><td>Marketing opt-in email</td><td>Until you unsubscribe</td><td>Removed from the update list and added to a suppression list</td></tr>
+      <tr><td>Local subscription data</td><td>Until you uninstall</td><td>Deleted automatically on uninstall, or by clearing extension data</td></tr>
+      <tr><td>Umami analytics</td><td>Aggregated statistics only, no identifier retained</td><td>N/A</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="consent-box">
+    <p><strong>How to get your data deleted (beta email list):</strong> email <a href="mailto:trackd@deanware.com">trackd@deanware.com</a> with the subject line <strong>"Delete my data"</strong>. We will delete the matching form submission(s) and remove you from any list, and confirm back to you <strong>within 30 days</strong>.</p>
+  </div>
 
   <h2>7. Third-party services</h2>
 
-  <p>Trackd uses the following third-party services:</p>
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Provider</th><th>Role</th><th>What it handles</th><th>Where</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Google (Gmail API)</td><td>Independent controller for your Google account</td><td>Read-only access to billing-related emails, on your device only</td><td>Your device / Google</td></tr>
+      <tr><td>Netlify, Inc.</td><td>Processor — website hosting and form handling</td><td>Stores your beta signup submission (email + IP + user-agent + timestamp)</td><td>United States</td></tr>
+      <tr><td>Akismet (Automattic)</td><td>Processor — spam filtering on form submissions</td><td>Submission data checked for spam</td><td>United States</td></tr>
+      <tr><td>Resend, Inc.</td><td>Processor — transactional email delivery</td><td>Sends your install-instructions email; receives your email address for that send only</td><td>United States</td></tr>
+      <tr><td>Umami (self-hosted)</td><td>Our own infrastructure</td><td>Aggregated, cookieless analytics</td><td>Our server</td></tr>
+      <tr><td>Gumroad, Inc.</td><td>Independent controller / merchant of record for Pro purchases</td><td>Your email and licence key at purchase time</td><td>United States</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>We do not share your beta email address with any advertising platform, data broker, or information reseller.</p>
+
+  <p><strong>International transfers:</strong> Netlify, Akismet, Resend and Gumroad are based in the United States. Where personal data of an EEA/UK data subject is transferred there, the transfer relies on the <strong>Standard Contractual Clauses</strong> under our agreement with each provider (Netlify publishes a Data Processing Agreement incorporating the SCCs). You can ask us for details of the safeguards in place.</p>
+
+  <h2>8. Your rights</h2>
+
+  <p>Depending on where you live, you may have some or all of the following rights. To exercise any of them, email <a href="mailto:trackd@deanware.com">trackd@deanware.com</a>. We will respond within <strong>30 days</strong> and we will not charge you or degrade your access for asking.</p>
 
   <ul>
-    <li><strong>Google Gmail API</strong>: To read billing-related emails with your explicit consent. Subject to <a href="https://policies.google.com/privacy" style="color: var(--accent);">Google's Privacy Policy</a>.</li>
-    <li><strong>Netlify</strong>: Landing page hosting and form processing for the testing-group signup form. Subject to <a href="https://www.netlify.com/privacy/" style="color: var(--accent);">Netlify's Privacy Policy</a>.</li>
-    <li><strong>Umami</strong>: Self-hosted, privacy-friendly analytics. No user data is shared with third parties.</li>
+    <li><strong>Access</strong> — get a copy of the personal data we hold about you.</li>
+    <li><strong>Rectification</strong> — correct an inaccurate email address.</li>
+    <li><strong>Erasure</strong> — have your data deleted (section 6).</li>
+    <li><strong>Restriction / objection</strong> — ask us to stop or limit processing; for marketing, an objection is always honoured.</li>
+    <li><strong>Portability</strong> — receive your data in a common machine-readable format.</li>
+    <li><strong>Withdraw consent</strong> — withdraw the signup or marketing consent at any time; withdrawal does not affect processing done before it.</li>
+    <li><strong>Non-discrimination (CCPA/CPRA)</strong> — we will not discriminate against you for exercising your rights.</li>
+    <li><strong>Complain</strong> — lodge a complaint with your local supervisory authority (EU/UK) or the California Attorney General / CPPA. We would appreciate the chance to fix it first.</li>
   </ul>
 
-  <h2>8. Chrome Web Store compliance</h2>
+  <p><strong>California notice (CCPA/CPRA):</strong> in the last 12 months we have collected the categories "identifiers" (email address, IP address) and "internet or network activity" (analytics, user-agent). Purposes are as described above. <strong>We do not sell your personal information and we do not share it for cross-context behavioural advertising</strong>, so there is no "Do Not Sell or Share My Personal Information" link because there is nothing to opt out of. We do not knowingly collect data from consumers under 16.</p>
 
-  <p>Trackd complies with Google's <a href="https://developer.chrome.com/docs/webstore/program-policies/" style="color: var(--accent);">Chrome Web Store Program Policies</a>, including the User Data Privacy requirements. Specifically:</p>
+  <p><strong>Do Not Track / Global Privacy Control:</strong> we do not track you across other websites, so there is nothing to turn off; GPC signals have no effect because we do not sell or share personal information.</p>
+
+  <h2>9. Legal bases (GDPR, for EEA/UK users)</h2>
 
   <ul>
-    <li>We only request the minimum permissions needed for the extension to function</li>
-    <li>All data handling is described accurately in this privacy policy</li>
-    <li>We do not sell or transfer user data to third parties</li>
-    <li>We do not use user data for purposes beyond the core functionality</li>
-    <li>Users can revoke access and delete data as described above</li>
+    <li><strong>Beta signup and install-instruction emails</strong> — your <strong>consent</strong> (Art. 6(1)(a)) and/or performance of the service you requested (Art. 6(1)(b)).</li>
+    <li><strong>Optional product-update emails</strong> — your <strong>consent</strong> only (Art. 6(1)(a)), given with a separate, unticked checkbox.</li>
+    <li><strong>Spam filtering / abuse prevention</strong> — our <strong>legitimate interests</strong> (Art. 6(1)(f)) in keeping the form usable and secure.</li>
+    <li><strong>Aggregated, cookieless analytics</strong> — our <strong>legitimate interests</strong> (Art. 6(1)(f)) in measuring whether our promotion works, using data that does not identify you.</li>
+    <li><strong>Gmail analysis inside the extension</strong> — your <strong>consent</strong>, given through the Google OAuth screen; revocable at any time.</li>
   </ul>
 
-  <h2>9. Changes to this policy</h2>
+  <h2>10. Security</h2>
 
-  <p>If this policy changes materially, we will update the "Last updated" date at the top and notify users at the contact address provided. We will never reduce your privacy rights without explicit consent.</p>
+  <ul>
+    <li><strong>Least privilege by design:</strong> one read-only Google scope, no other permission.</li>
+    <li><strong>On-device processing:</strong> email analysis and merchant detection run entirely in your browser; no message content is transmitted to or stored on any external server.</li>
+    <li><strong>Local-only storage:</strong> detected subscriptions live in <code>chrome.storage.local</code> and are removed when you uninstall.</li>
+    <li><strong>Encryption in transit:</strong> HTTPS/TLS for the Gmail API, the signup form, and Gumroad licence verification.</li>
+    <li><strong>No backend, no account, no cloud database</strong> for extension data.</li>
+    <li><strong>Segregated contact data:</strong> the beta list lives in the form host's submission store, not in any product database.</li>
+  </ul>
 
-  <h2>10. Contact</h2>
+  <p>No method of transmission or storage is 100% secure, but we collect as little as possible so that there is as little as possible to protect.</p>
 
-  <p>Questions about this policy? Reach out:</p>
+  <h2>11. Children</h2>
+
+  <p>Trackd is not directed to children under 13 (under 16 in the EEA/UK), and we do not knowingly collect their personal data. If you believe a child has submitted an email address to us, contact us and we will delete it.</p>
+
+  <h2>12. Chrome Web Store / Google API compliance</h2>
+
+  <p>Trackd complies with Google's <a href="https://developer.chrome.com/docs/webstore/program-policies/">Chrome Web Store Program Policies</a> and the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>. Specifically:</p>
+
+  <ul>
+    <li>We request the minimum permission needed for the single purpose of finding and tracking your subscriptions.</li>
+    <li>All data handling is described accurately in this privacy policy and in the product.</li>
+    <li>We do not sell or transfer user data to third parties, and we do not use it for personalised advertising, credit-worthiness, or lending purposes.</li>
+    <li>Users can revoke access and delete data as described above.</li>
+  </ul>
+
+  <div class="highlight-box">
+    <p><strong>The use of information received from Google APIs will adhere to the Chrome Web Store User Data Policy, including the Limited Use requirements.</strong></p>
+    <p><em>This exact affirmative statement is required to be published on a website belonging to the extension — it must not be removed or paraphrased.</em></p>
+  </div>
+
+  <h2>13. Changes to this policy</h2>
+
+  <p>If this policy changes materially, we will update the "Last updated" date at the top and notify you at the contact address you gave us before the change takes effect. We will never reduce your privacy rights without explicit consent.</p>
+
+  <h2>14. Contact</h2>
+
+  <p>Questions, requests, or complaints:</p>
   <p>
-    Email: <a href="mailto:trackd@deanware.com" style="color: var(--accent);">trackd@deanware.com</a><br>
+    Email: <a href="mailto:trackd@deanware.com">trackd@deanware.com</a><br>
+    Data deletion requests: <a href="mailto:trackd@deanware.com">trackd@deanware.com</a> — subject "Delete my data"<br>
+    Unsubscribe from product updates: any unsubscribe link in the email, or reply with subject "unsubscribe"
   </p>
 
   <hr>
+
+  <p class="disclaimer">Prepared by the Trackd compliance worker (Kanban task t_bf47c595). This is not legal advice.</p>
 
   <p style="text-align: center; margin-top: 24px;">
     <a href="/" style="color: var(--accent);">&larr; Back to Trackd</a>
