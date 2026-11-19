@@ -2,10 +2,17 @@
 
 Task t_bf47c595 · Owner: Trackd developer · Target: publish with the beta launch
 
-**Correction notice:** the first version of this runbook described the *live* deployed page, which is a
+**Correction notice:** the first version of this runbook described the *live* deployed page, which was a
 stale deploy. The repo at `/opt/data/trackd` (commit `0f4e479`, 18 Nov 2026) already implements the
 consent block, `data-netlify="true"`, the honeypot and a Resend-backed confirmation email. Everything
 below is re-verified against the repo, not the served page.
+
+**Second correction (19 Nov 2026, task t_791777d5):** the stale-deploy gap is closed. The live site now
+serves the consent block verbatim, and `https://trackd.deanware.com/privacy-policy` byte-matches
+`privacy-policy.html` in `main`. Anything below that still says "on the live site: not done" is historical;
+see `docs/signup-consent-copy.md` for the deployed copy and `docs/consent-live-verification.md` for the
+live verification record. The deletion path now has its own file:
+`docs/signup-list-data-deletion-procedure.md` (executable via `scripts/delete-signup-data.py`).
 
 This is the operational half of the privacy policy. The policy makes three promises; each one has a
 concrete path below. A promise with no path is a false statement, so do not publish the policy until the
@@ -28,9 +35,11 @@ Both are declared on the **static** form in `index.html`, so Netlify sees them w
 HTML and stores them with each submission. `data-netlify="true"`, `netlify-honeypot="bot-field"` and the
 hidden `form-name` are all present. `docs/beta-signup-email-capture.md` in the repo documents the same.
 
-**On the live site:** **not** done. `https://trackd.deanware.com` currently serves the older
-`class="test-form"` markup with no consent block and no `data-netlify` attribute. So the form is
-compliant in Git and non-compliant in production until a deploy lands. **[BLOCKING]**
+**On the live site:** **done as of 19 Nov 2026** — `https://trackd.deanware.com` serves the consent block
+with the wording below, `name="trackd-test-group"`, and both ticks unticked on a fresh load (Netlify
+re-serialises the `<form>` tag and drops `data-netlify` / `netlify-honeypot`; that is expected, not a bug).
+Verification record: `docs/consent-live-verification.md`. Canonical copy for the frontend:
+`docs/signup-consent-copy.md`.
 
 ### Two wording fixes before this ships
 
@@ -128,6 +137,11 @@ bare address is retained solely to honour their objection.
 
 ## Part 3 — Data deletion request (the "Delete my data" path)
 
+**Full procedure: `docs/signup-list-data-deletion-procedure.md`** — the standalone SOP (receive → locate →
+delete → suppress → confirm → sweep), with `scripts/delete-signup-data.py` as its executable form
+(`--list`, `--email X [--confirm]`, `--sweep --older-than-days N [--confirm]`; dry run by default).
+The summary below is retained for context.
+
 ### Promise in the policy
 
 Email `trackd@deanware.com` with the subject **"Delete my data"** → deletion + confirmation **within
@@ -198,7 +212,8 @@ closes plus 12 months. That sweep is what makes the policy's retention commitmen
    Set `RESEND_API_KEY` and `SIGNUP_FROM_EMAIL` (a verified sender; the default `onboarding@resend.dev`
    only delivers to the account owner), then redeploy. **[BLOCKING]**
 5. **Physical postal address still missing** — needed in marketing emails and in the policy's controller
-   section. Fill the `[TODO]` markers in `privacy-policy.html` / `privacy-policy.md`.
+   section. Fill the `[TODO]` markers in `privacy-policy.html` (the published file; there is no separate
+   Markdown copy).
 
 ---
 
