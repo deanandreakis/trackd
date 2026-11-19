@@ -722,7 +722,7 @@
          as HTML/CSS/vanilla JS rather than a framework component).
          Page/route: "/" (landing page hero). See docs/beta-signup-email-capture.md.
          Wired to the frozen backend contract:
-           POST /api/beta-signup  { email, honeypot, source }
+           POST /api/beta-signup  { email, honeypot, source, beta_consent, marketing_consent }
            200 { status: "ok" } | 400 { status: "error", message }
          The Netlify Forms attributes below are kept ONLY as a migration safety
          net: while the new API route is not deployed yet, the script falls back
@@ -1018,11 +1018,15 @@
 /*
  * BetaSignupForm — above-the-fold email capture for the Trackd landing page ("/").
  *
- * Endpoint (frozen contract, backend built in parallel):
+ * Endpoint (frozen contract v2, backend built in parallel):
  *   POST /api/beta-signup
- *     request  { email: string, honeypot: string, source: string }
+ *     request  { email: string, honeypot: string, source: string,
+ *                beta_consent: boolean, marketing_consent: boolean }
  *     200      { status: "ok" }
  *     400      { status: "error", message: string }
+ *
+ * The two consent booleans are the consent evidence the privacy policy relies
+ * on (§9); they must reach the server, not just gate the form client-side.
  *
  * State machine: idle -> validating -> loading -> success | error (retryable).
  * Deliberately framework-free: this site is a single static HTML file with no
@@ -1046,6 +1050,7 @@
   var emailEl = document.getElementById("signup-email");
   var honeypotEl = document.getElementById("signup-honeypot");
   var consentEl = document.getElementById("beta-consent");
+  var marketingEl = document.getElementById("marketing-consent");
   var btn = document.getElementById("signup-submit");
   var btnLabel = btn ? btn.textContent : "Submit";
 
@@ -1138,7 +1143,12 @@
       body: JSON.stringify({
         email: email,
         honeypot: honeypotEl ? honeypotEl.value : "",
-        source: SOURCE
+        source: SOURCE,
+        // Consent evidence (contract v2, frozen by compliance): booleans, so the
+        // server can record the lawful basis for the signup and the install email
+        // and tell an unticked marketing opt-in apart from a missing one.
+        beta_consent: consentEl.checked === true,
+        marketing_consent: marketingEl ? marketingEl.checked === true : false
       })
     })
       .then(function (response) {

@@ -15,7 +15,8 @@ than as a framework component; it has no dependencies.
 
 ```
 POST /api/beta-signup
-  request   { email: string, honeypot: string, source: string }   source = "homepage-hero"
+  request   { email: string, honeypot: string, source: string,
+              beta_consent: boolean, marketing_consent: boolean }   source = "homepage-hero"
   200       { status: "ok" }
   400       { status: "error", message: string }
 ```
@@ -28,6 +29,16 @@ instructions.`) or error (form stays, inline `#signup-error` shows the server's
 **Validation:** a single client-side email format check runs before any network
 call; an unticked `beta_consent` also blocks submit. Both failures are inline and
 never hit the network.
+
+**Consent transport (contract v2):** the JSON body to `/api/beta-signup` carries the
+consent evidence as well — `beta_consent` (from `#beta-consent`) and
+`marketing_consent` (from `#marketing-consent`), both read with `.checked === true`
+and sent as **booleans**, not `"on"`/strings. Consent is therefore not only a
+client-side gate: the server can record the lawful basis for the signup and the
+install email (§9 of the policy), and an unticked marketing opt-in leaves an
+explicit `false` rather than no trace. The legacy Netlify Forms fallback is
+unchanged: it serialises the whole `FormData`, so it still posts
+`beta_consent=on` (and `marketing_consent=on` only when ticked).
 
 **Spam:** the honeypot is a field literally named `honeypot`, positioned off-screen
 (`.signup-form__hp`), `aria-hidden`, `tabindex="-1"`, never pre-filled. A non-empty
@@ -99,6 +110,9 @@ returns 200 and is recorded. Do not "fix" the served tag.
 - Both are declared on the static form, so Netlify registers them at deploy time and
   stores them with each submission (a field Netlify never sees at build time is
   dropped from the stored record).
+- Both are also sent to `/api/beta-signup` as booleans (`beta_consent`,
+  `marketing_consent`) since contract v2, so the primary path records consent
+  evidence and not just the address.
 
 ## Required setup to finish (one step)
 
