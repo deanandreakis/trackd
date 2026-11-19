@@ -1,147 +1,177 @@
-# Beta signup email capture
+# Beta signup: endpoint, storage and confirmation email
 
 How the email capture on the Trackd landing page (`trackd.deanware.com`) works,
-where the list lives, and what still needs to be switched on.
+where the list lives, and what has to be switched on.
 
-## Frontend component — `BetaSignupForm` (page/route: `/`, hero)
-
-The capture form is a self-contained component on the landing page **`/`**
-(`index.html`): markup in the hero `<section>`, styles in `<style>` (`.signup-form*`),
-and the behaviour in the inline `<script>` at the bottom of the file. There is no
-build step on this site, so the component ships as HTML + CSS + vanilla JS rather
-than as a framework component; it has no dependencies.
-
-**Wired endpoint (frozen contract, owned by the backend card):**
+## Endpoint (frozen contract)
 
 ```
 POST /api/beta-signup
-  request   { email: string, honeypot: string, source: string,
-              beta_consent: boolean, marketing_consent: boolean }   source = "homepage-hero"
-  200       { status: "ok" }
-  400       { status: "error", message: string }
+Content-Type: application/json
+
+request   { "email": string, "honeypot": string, "source": string,
+            "beta_consent": boolean, "marketing_consent": boolean }
+success   200 { "status": "ok" }
+error     400 { "status": "error", "message": string }   // validation, spam, throttle
+error     500 { "status": "error", "message": string }   // provider/storage outage
 ```
 
-**States:** idle → client validation → loading (button disabled, label `Sending…`,
-`aria-busy="true"`) → success (form replaced by `Check your inbox for install
-instructions.`) or error (form stays, inline `#signup-error` shows the server's
-`message` or a generic line, submit re-enabled so the user can retry).
+The two consent booleans are the consent evidence the privacy policy relies on
+(§9): `beta_consent` is required client-side and `marketing_consent` is an optional
+separate opt-in. Both are sent as booleans (`true`/`false`), never `"on"`/strings,
+so the server can tell an unticked marketing box apart from a missing one. The
+legacy Netlify Forms fallback still posts them as `beta_consent=on` /
+`marketing_consent=on`.
 
-**Validation:** a single client-side email format check runs before any network
-call; an unticked `beta_consent` also blocks submit. Both failures are inline and
-never hit the network.
+- **Public URL:** `https://trackd.deanware.com/api/beta-signup`
+- **Implementation:** `netlify/functions/beta-signup.js`
+- **Route:** `netlify.toml` rewrites `/api/beta-signup` to
+  `/.netlify/functions/beta-signup` with `status = 200` (a rewrite; the browser
+  URL stays `/api/beta-signup`).
+- **Same-origin only.** No CORS headers are emitted. The form is served from the
+  same site, so no preflight is needed. A cross-origin caller gets no
+  `Access-Control-Allow-Origin` and the browser blocks the response.
 
-**Consent transport (contract v2):** the JSON body to `/api/beta-signup` carries the
-consent evidence as well — `beta_consent` (from `#beta-consent`) and
-`marketing_consent` (from `#marketing-consent`), both read with `.checked === true`
-and sent as **booleans**, not `"on"`/strings. Consent is therefore not only a
-client-side gate: the server can record the lawful basis for the signup and the
-install email (§9 of the policy), and an unticked marketing opt-in leaves an
-explicit `false` rather than no trace. The legacy Netlify Forms fallback is
-unchanged: it serialises the whole `FormData`, so it still posts
-`beta_consent=on` (and `marketing_consent=on` only when ticked).
-
-**Spam:** the honeypot is a field literally named `honeypot`, positioned off-screen
-(`.signup-form__hp`), `aria-hidden`, `tabindex="-1"`, never pre-filled. A non-empty
-value short-circuits to a fake success with **no network request** (tarpit).
-
-**Accessibility:** the label is tied to the input (`label[for="signup-email"]`,
-visually hidden), the success message is a `role="status" aria-live="polite"` live
-region, the inline error is `role="alert"` with `aria-invalid` on the input, and the
-form is submittable with Enter from the email field.
-
-**Migration safety net (remove once the API is deployed):** while the
-`/api/beta-signup` route answers **404** (not deployed yet), the submit handler falls
-back to the legacy Netlify Forms POST to `/` so live signups are still stored; it
-logs `beta-signup: /api/beta-signup is not deployed; stored via the Netlify Forms
-fallback.` and fires the Umami event `beta-signup-fallback`. Any other failure
-(400/5xx/network) shows the inline error. When the API is live, delete
-`submitToLegacyForm()` and the `data-netlify` / `netlify-honeypot` / `name` /
-hidden `form-name` attributes from the `<form>`.
+The handler is split into a transport-free core
+(`netlify/lib/beta-signup.js`) and a thin Netlify adapter. The core is covered by
+`tests/beta-signup.test.js`; run `npm test`.
 
 ## Flow
 
-1. Visitor enters an email in the above-the-fold form (`index.html`, hero section).
-2. The form POSTs JSON to `/api/beta-signup` (see the component section above). If
-   that route is not deployed yet (404) it falls back to the legacy Netlify Forms
-   POST (`name="trackd-test-group"`, `fetch("/", …)`, urlencoded) — the only path
-   that is still live until the API ships.
-3. Netlify stores the submission and fires the event function
-   `submission-created` (`netlify/functions/submission-created.js`).
-4. That function sends the beta confirmation email (install instructions) to the
-   submitted address via **Resend**.
-5. The page shows `Check your inbox for install instructions.` on success, or an
-   inline error on failure.
+1. Visitor submits the hero form (`index.html`, `#signup-form`).
+2. The inline script validates the address and the required consent tick, then
+   POSTs JSON to `/api/beta-signup`.
+3. The function validates the address, checks the honeypot, applies the per-IP
+   throttle, adds the address to the Resend Audience (the list), and sends the
+   confirmation email through Resend.
+4. The page shows `Check your inbox for install instructions.` on success, or an
+   inline error on failure. The form stays usable for a retry.
 
-## Endpoint / service
+## Storage — where the list lives
 
 | Concern | Where |
 | --- | --- |
-| Submission endpoint | `POST /api/beta-signup` (JSON) — primary. Legacy fallback while that route 404s: `POST https://trackd.deanware.com/` with `form-name=trackd-test-group` (Netlify Forms). |
-| Storage (the list) | Netlify UI → **Forms → `trackd-test-group`** → Submissions. Exportable as CSV. |
-| Confirmation email | Netlify event function `netlify/functions/submission-created.js`, sent through the **Resend** HTTP API (`https://api.resend.com/emails`) |
-| Client logic | Inline `<script>` at the bottom of `index.html` |
+| **The list (authoritative)** | **Resend Audience** identified by `RESEND_AUDIENCE_ID`. Resend dashboard → **Audiences → [audience] → Contacts**. Exportable via the Resend API or `scripts/export-beta-signups.mjs`. |
+| **Operational store** | **Netlify Blobs**, store name `beta-signups` (override with `SIGNUP_BLOBS_STORE`). Holds rate-limit slot keys and a signup marker keyed by an HMAC of the address. It does **not** hold a second copy of the address when an audience is configured. |
+| **Fallback store** | If `RESEND_AUDIENCE_ID` is not set, the Blobs record also stores the raw address so the signup is still durable. This is a fallback, not the intended production setup — without an audience there is no Resend UI/CSV list. |
+| **Confirmation email** | Resend HTTP API, `POST https://api.resend.com/emails`, sent synchronously in the request path. |
 
-There is no separate database. The authoritative list of signups is the Netlify
-Forms submissions table; the address copy also lands in whoever the Netlify form
-notification emails, if one is configured (Forms → Submission notifications).
+The address is stored in the audience **before** the email is sent. If the send
+fails the request returns 500; the address remains in the audience, and a retry
+finds it already present (no duplicate row) and retries the send.
+
+### Duplicate handling (idempotent)
+
+- The audience is keyed by address. A repeat signup is "already present", not a
+  second row.
+- A signup marker keyed by the address HMAC records when the confirmation was
+  sent. A repeat within `SIGNUP_RESEND_COOLDOWN_SECONDS` (default 24 h) returns
+  `200 {"status":"ok"}` without sending another email or storing anything twice.
+- After the cooldown, a repeat sends the confirmation again (allowed by the
+  contract) but still does not duplicate the audience row.
+- Resend duplicate responses (`409`, or a message containing "already exists")
+  are treated as success.
 
 ## Spam protection
 
-- **Honeypot** field `bot-field`, matched by `netlify-honeypot="bot-field"` on the
-  form. The field is positioned off-screen, removed from the tab order
-  (`tabindex="-1"`), and hidden from assistive tech (`aria-hidden`). If it is
-  filled, the client pretends to succeed and Netlify discards the submission.
-- Native HTML5 validation: `type="email" required` plus CSRF-free same-origin POST.
+- **Honeypot** field named `honeypot`. The client hides it off-screen, removes it
+  from the tab order and marks it `aria-hidden`; a bot that fills it gets a fake
+  success and no network request. The API also rejects a non-empty honeypot with
+  `400` and stores nothing.
+- **Per-IP throttle.** Fixed-window claim in Netlify Blobs: `RATE_LIMIT_MAX`
+  requests (default 5) per `RATE_LIMIT_WINDOW_SECONDS` (default 600) per IP. The
+  IP is taken from Netlify's edge-set `x-nf-client-connection-ip` header. Each
+  request atomically creates one of N slot keys with `onlyIfNew`, so concurrent
+  requests cannot all pass on the same slot. Exceeding the limit returns `400`
+  (the contract only defines 200/400) with a "try again" message.
+- If the Blobs store is unavailable the throttle fails open: the signup still
+  works and the outage is logged. Availability is preferred over a best-effort
+  throttle during a storage outage.
 
-## Note on the served HTML (not a bug)
+## Privacy
 
-`curl https://trackd.deanware.com/` shows a `<form>` tag with **no**
-`data-netlify="true"` and **no** `netlify-honeypot`, and single-quoted attributes.
-That is Netlify's own form post-processing re-serializing the tag on the way out.
-The attributes are present in the source (`index.html`) and were seen when Netlify
-built the form definition, so form registration, the server-side honeypot and the
-`form-name` all keep working. A POST to `/` with `form-name=trackd-test-group`
-returns 200 and is recorded. Do not "fix" the served tag.
+- The raw email address is **never logged**. Log lines carry a short HMAC-SHA256
+  prefix (`emailHash`) so a failed send can be correlated without PII.
+- Store keys for signups and rate-limit slots are HMACs too. Set
+  `SIGNUP_HASH_SALT` to a stable secret so the hashes are not guessable from the
+  public source. Changing the salt changes the keys and resets duplicate
+  suppression; set it once.
+- The audience is the only place the raw address is persisted in production.
 
-## Consent (field names owned by the compliance task)
+## Required setup (Netlify + Resend)
 
-- `beta_consent` — **required**, starts unticked. Blocks submission until ticked.
-- `marketing_consent` — optional, separate tick. Never bundled with the beta opt-in.
-- Both are declared on the static form, so Netlify registers them at deploy time and
-  stores them with each submission (a field Netlify never sees at build time is
-  dropped from the stored record).
-- Both are also sent to `/api/beta-signup` as booleans (`beta_consent`,
-  `marketing_consent`) since contract v2, so the primary path records consent
-  evidence and not just the address.
-
-## Required setup to finish (one step)
-
-The form, storage and consent work as deployed. **The confirmation email needs a
-Resend API key:**
-
-1. Create a Resend account and (recommended) verify `deanware.com` as a sending
-   domain (adds SPF/DKIM DNS records).
+1. Create a Resend account and verify `deanware.com` as a sending domain (adds
+   SPF/DKIM DNS records).
 2. Create an API key (`re_…`).
-3. In Netlify: **Site configuration → Environment variables** add
-   - `RESEND_API_KEY` = the key
+3. Create an **Audience** in Resend (e.g. "Trackd beta"). Copy its id.
+4. In Netlify: **Site configuration → Environment variables** add:
+   - `RESEND_API_KEY` = the key (required)
+   - `RESEND_AUDIENCE_ID` = the audience id (required for the list)
    - `SIGNUP_FROM_EMAIL` = `Trackd <hello@deanware.com>` (a verified sender;
      defaults to the sandbox `onboarding@resend.dev`, which only delivers to the
      account owner's own address)
-   - optional `SIGNUP_REPLY_TO` (defaults to `trackd@deanware.com`)
-4. Redeploy so the function picks up the variables.
+   - `SIGNUP_REPLY_TO` = `trackd@deanware.com` (optional; this is the default)
+   - `SIGNUP_HASH_SALT` = a long random string (recommended; set once)
+   - optional tuning: `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_SECONDS`,
+     `SIGNUP_RESEND_COOLDOWN_SECONDS`, `SIGNUP_BLOBS_STORE`
+5. Redeploy so the function and the new route pick up the variables.
 
-Until the key is set the function logs a warning and returns 200 without sending:
-**submissions are still stored**, but no confirmation email goes out.
+Without `RESEND_API_KEY` the endpoint cannot send, so it returns a generic `500`
+and does not store the address. That is deliberate: the contract's success means
+"stored and email sent".
 
 ## Verifying
 
-1. Submit a real email from the live page.
-2. Netlify → Forms → `trackd-test-group` → confirm the row shows `email`,
-   `beta_consent: on`, and `marketing_consent: on` only when that box was ticked.
-3. Confirm the install-instructions email arrives.
+Local contract tests (no network, no Netlify):
+
+```bash
+npm test
+```
+
+Against the deployed site:
+
+```bash
+# Valid address: expect 200 {"status":"ok"} and an email within ~60s.
+curl -sS -i -X POST https://trackd.deanware.com/api/beta-signup \
+  -H 'Content-Type: application/json' \
+  --data '{"email":"you@example.com","honeypot":"","source":"curl-test"}'
+
+# Filled honeypot: expect 400 and nothing stored.
+curl -sS -i -X POST https://trackd.deanware.com/api/beta-signup \
+  -H 'Content-Type: application/json' \
+  --data '{"email":"bot@example.com","honeypot":"x","source":"curl-test"}'
+
+# Invalid address: expect 400 with a clear message.
+curl -sS -i -X POST https://trackd.deanware.com/api/beta-signup \
+  -H 'Content-Type: application/json' \
+  --data '{"email":"not-an-email","honeypot":"","source":"curl-test"}'
+```
+
+Then confirm the address appears in Resend → Audiences → the configured audience
+→ Contacts, and that the confirmation email arrived with the Chrome Web Store
+link and the numbered install steps.
+
+## Exporting the list
+
+```bash
+RESEND_API_KEY=re_... RESEND_AUDIENCE_ID=... node scripts/export-beta-signups.mjs > beta-signups.csv
+```
+
+The script pages through `GET /audiences/{id}/contacts` and writes
+`email,created_at,unsubscribed`.
+
+## Legacy Netlify Forms path
+
+`netlify/functions/submission-created.js` still exists for the old Netlify Forms
+submission path (`form-name=trackd-test-group`). The current landing page no
+longer posts to Netlify Forms, so this function is dormant unless a form
+submission is created another way. It sends the same confirmation copy from
+`netlify/lib/confirmation-email.js`.
 
 ## Unsubscribe / deletion
 
-The confirmation email tells the recipient to reply with "unsubscribe"; deletions
-are done by deleting the row in the Netlify Forms table (and, for the marketing
-list, by removing the address from any future send).
+The confirmation email tells the recipient to reply with "unsubscribe" and
+includes a `List-Unsubscribe` mailto header. To delete an address, remove the
+contact from the Resend Audience (dashboard or API) and delete the signup marker
+from the `beta-signups` Blobs store if present. For the marketing list, remove the
+address from any future send.

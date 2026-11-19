@@ -1,0 +1,10 @@
+# Public API route for the beta signup endpoint.
+#
+# The frozen frontend contract posts to /api/beta-signup. Netlify serves the
+# function at /.netlify/functions/beta-signup, so this rewrite keeps the public
+# path stable. status = 200 is a rewrite: the browser URL does not change.
+[[redirects]]
+  from = "/api/beta-signup"
+  to = "/.netlify/functions/beta-signup"
+  status = 200
+  force = true
