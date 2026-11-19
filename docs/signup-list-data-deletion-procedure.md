@@ -16,6 +16,27 @@ A promise with no procedure behind it is a false statement, so this file is what
   `scripts/delete-signup-data.py` (this procedure, executable),
   `scripts/verify-netlify-forms-consent.py` (read-only consent read-back).
 
+## 0. Open item that changes this document (checked 19 Nov 2026)
+
+A new endpoint `POST /api/beta-signup` (backend card **t_8cb89494**) is being deployed to replace the
+Netlify Forms transport. Until it is live (today `https://trackd.deanware.com/api/beta-signup` answers
+**404** and the page falls back to the Netlify Forms POST), **Netlify Forms is the store and this document
+is accurate as written**.
+
+Two things must be settled before that endpoint becomes the primary path, or this document becomes a
+description of a store that no longer holds the addresses:
+
+1. **The store moves.** If the endpoint keeps the address in a provider audience (rather than Netlify
+   Forms), deletion runs in that provider's UI/API, not in Netlify Forms — parts 3, 3a and 5 below must be
+   re-pointed. Tracked on card **t_791777d5's follow-ups**.
+2. **The consent record must move with it.** The frozen contract currently sends only
+   `{email, honeypot, source}`; the consent values never leave the browser, so the endpoint stores no
+   proof of consent for the processing the policy describes in §9. Amending the contract is card
+   *"Carry consent evidence through /api/beta-signup"* (backend-developer + frontend-developer).
+
+Deleting a record that never recorded consent is easy; proving consent for the records you keep is not.
+Do not let the migration ship without item 2.
+
 ---
 
 ## 1. Receiving a request
