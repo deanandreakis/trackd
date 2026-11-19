@@ -3,12 +3,57 @@
 How the email capture on the Trackd landing page (`trackd.deanware.com`) works,
 where the list lives, and what still needs to be switched on.
 
+## Frontend component — `BetaSignupForm` (page/route: `/`, hero)
+
+The capture form is a self-contained component on the landing page **`/`**
+(`index.html`): markup in the hero `<section>`, styles in `<style>` (`.signup-form*`),
+and the behaviour in the inline `<script>` at the bottom of the file. There is no
+build step on this site, so the component ships as HTML + CSS + vanilla JS rather
+than as a framework component; it has no dependencies.
+
+**Wired endpoint (frozen contract, owned by the backend card):**
+
+```
+POST /api/beta-signup
+  request   { email: string, honeypot: string, source: string }   source = "homepage-hero"
+  200       { status: "ok" }
+  400       { status: "error", message: string }
+```
+
+**States:** idle → client validation → loading (button disabled, label `Sending…`,
+`aria-busy="true"`) → success (form replaced by `Check your inbox for install
+instructions.`) or error (form stays, inline `#signup-error` shows the server's
+`message` or a generic line, submit re-enabled so the user can retry).
+
+**Validation:** a single client-side email format check runs before any network
+call; an unticked `beta_consent` also blocks submit. Both failures are inline and
+never hit the network.
+
+**Spam:** the honeypot is a field literally named `honeypot`, positioned off-screen
+(`.signup-form__hp`), `aria-hidden`, `tabindex="-1"`, never pre-filled. A non-empty
+value short-circuits to a fake success with **no network request** (tarpit).
+
+**Accessibility:** the label is tied to the input (`label[for="signup-email"]`,
+visually hidden), the success message is a `role="status" aria-live="polite"` live
+region, the inline error is `role="alert"` with `aria-invalid` on the input, and the
+form is submittable with Enter from the email field.
+
+**Migration safety net (remove once the API is deployed):** while the
+`/api/beta-signup` route answers **404** (not deployed yet), the submit handler falls
+back to the legacy Netlify Forms POST to `/` so live signups are still stored; it
+logs `beta-signup: /api/beta-signup is not deployed; stored via the Netlify Forms
+fallback.` and fires the Umami event `beta-signup-fallback`. Any other failure
+(400/5xx/network) shows the inline error. When the API is live, delete
+`submitToLegacyForm()` and the `data-netlify` / `netlify-honeypot` / `name` /
+hidden `form-name` attributes from the `<form>`.
+
 ## Flow
 
 1. Visitor enters an email in the above-the-fold form (`index.html`, hero section).
-2. The form is a **Netlify Form** (`name="trackd-test-group"`). It is submitted by
-   JavaScript via `fetch("/", …)` as `application/x-www-form-urlencoded`; with JS
-   disabled the browser does the same POST natively.
+2. The form POSTs JSON to `/api/beta-signup` (see the component section above). If
+   that route is not deployed yet (404) it falls back to the legacy Netlify Forms
+   POST (`name="trackd-test-group"`, `fetch("/", …)`, urlencoded) — the only path
+   that is still live until the API ships.
 3. Netlify stores the submission and fires the event function
    `submission-created` (`netlify/functions/submission-created.js`).
 4. That function sends the beta confirmation email (install instructions) to the
@@ -20,7 +65,7 @@ where the list lives, and what still needs to be switched on.
 
 | Concern | Where |
 | --- | --- |
-| Submission endpoint | `POST https://trackd.deanware.com/` with `form-name=trackd-test-group` (Netlify Forms) |
+| Submission endpoint | `POST /api/beta-signup` (JSON) — primary. Legacy fallback while that route 404s: `POST https://trackd.deanware.com/` with `form-name=trackd-test-group` (Netlify Forms). |
 | Storage (the list) | Netlify UI → **Forms → `trackd-test-group`** → Submissions. Exportable as CSV. |
 | Confirmation email | Netlify event function `netlify/functions/submission-created.js`, sent through the **Resend** HTTP API (`https://api.resend.com/emails`) |
 | Client logic | Inline `<script>` at the bottom of `index.html` |
