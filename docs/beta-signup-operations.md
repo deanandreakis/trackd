@@ -5,9 +5,29 @@ request and response contract, the email service, where the signup list lives,
 the configuration keys, the confirmation email contents, and the rate-limit and
 duplicate semantics.
 
-Everything here is derived from the code on `main` at `8e50592` and was verified
-by running the test suite (`npm test`, 35/35 pass) and by rendering the
+Everything here is derived from the code on `main` at `78b694b` and was verified
+by running the test suite (`npm test`, 39/39 pass) and by rendering the
 confirmation email through `netlify/lib/confirmation-email.js`.
+
+## 0. Deployment status (verified 23 Nov 2026)
+
+**The endpoint is written and committed but NOT deployed.** This document
+describes the code's behaviour; the live site does not yet run it.
+
+| | |
+| --- | --- |
+| `POST https://trackd.deanware.com/api/beta-signup` | **404** (route not deployed) |
+| `origin/main` | `98ff5c2` — API commits are **not** on main |
+| Backend commits | local `main` `78b694b` (5 ahead of `origin/main`); pushed as branch `beta-signup-api` |
+| Live capture today | the page's 404-only fallback POSTs to the registered Netlify Form `trackd-test-group` |
+
+Deploying `main` **before** the SES environment variables are set (section 5) is
+unsafe: the handler returns `500` when the provider is not configured, and the
+frontend falls back only on `404`, so a premature deploy replaces a working
+capture path with inline errors. Set the env vars, then deploy.
+
+End-to-end evidence for the above (live checks + local harness) is in
+`docs/beta-signup-e2e-verification.md`.
 
 Design rationale and background live in `docs/beta-signup-email-capture.md`.
 This guide is the operational view: enough to call the endpoint, find a stored
@@ -27,7 +47,7 @@ signup, and follow the email send, without opening the source.
 | Email service | AWS SES v2 (REST-JSON API, SigV4-signed in-repo, no AWS SDK) |
 | The list | AWS SES contact list named by `SES_CONTACT_LIST` (for example `trackd-beta`) |
 | Operational store | Netlify Blobs store `beta-signups` (rate-limit slots + hashed signup markers) |
-| Tests | `npm test` (35 tests) |
+| Tests | `npm test` (39 tests) |
 
 ## 1. Endpoint
 
@@ -58,6 +78,16 @@ returns `400`.
 | `email` | string | yes | The address to sign up. Trimmed and lowercased before storage. |
 | `honeypot` | string | yes | Spam trap. Must be an empty string. A non-empty value is treated as a bot. |
 | `source` | string | no | Free-form attribution label. Trimmed to 120 characters. Absent or empty becomes `unknown`. |
+| `beta_consent` | boolean | no | Sent by the frontend (contract v2) as the consent evidence for the install email. **The handler does not read this field today** — see the note below. |
+| `marketing_consent` | boolean | no | Sent by the frontend (contract v2) for the optional marketing opt-in. **Not read by the handler today.** |
+
+> **Known gap (verified 23 Nov 2026).** The live frontend posts all five fields
+> (`{email, honeypot, source, beta_consent, marketing_consent}`), but
+> `netlify/lib/beta-signup.js` reads only `email`, `honeypot`, and `source`
+> (`grep -rn consent netlify/` returns nothing). The consent evidence the privacy
+> policy relies on therefore reaches the server and is discarded. Extra JSON
+> fields are ignored, not rejected, so this does not change any status code.
+> Carrying the booleans through to storage is an open backend/frontend item.
 
 The body is capped at 2048 bytes. An oversized body is rejected with `400`
 before any storage happens.
@@ -192,6 +222,28 @@ signup markers. Keys and values are not human-readable addresses; that is by
 design so logs and the store carry no PII. To confirm duplicate suppression is
 working, look for a `signup:<hash>` key whose record has a non-null
 `confirmationSentAt`.
+
+### Remove an address (manual, once the endpoint is the live path)
+
+When the endpoint is deployed, the raw address lives in the **SES contact list**
+(`SES_CONTACT_LIST`), not in Netlify Forms, so deletion targets SES:
+
+1. **SES console** — Configuration → Contact lists → [list] → select the contact →
+   Delete. This removes the address from the authoritative list.
+2. **AWS CLI** —
+   `aws sesv2 delete-contact --contact-list-name trackd-beta --email-address someone@example.com`
+3. **Operational marker** — the Blobs `signup:<HMAC>` record holds no raw address;
+   it expires with the beta and needs no per-address deletion, but you can remove
+   it with the export script's store handle if you want the throttle/cooldown
+   state cleared too.
+4. Keep the bare address on the **do-not-contact/suppression list** so a later
+   import cannot re-add it.
+
+The full erasure procedure (request handling, deadlines, Netlify Forms legacy
+path, retention sweep) is in `docs/signup-list-data-deletion-procedure.md`.
+That document still describes the **Netlify Forms** store, which is correct while
+the endpoint is undeployed; once the endpoint goes live, its parts 3/3a/5 must be
+re-pointed at the SES contact list as described above.
 
 ## 5. Configuration
 
@@ -340,7 +392,7 @@ npm test
 
 The suite starts real local HTTP servers standing in for SES, so the handler, the
 SES provider, the SigV4 signer, and the CSV export are all exercised over actual
-sockets. Expected: 35 tests, 35 pass.
+sockets. Expected: 39 tests, 39 pass.
 
 Against a deployed site:
 
