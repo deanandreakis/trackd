@@ -51,7 +51,7 @@
     /* ---- Hero ---- */
     .hero {
       text-align: center;
-      padding: 52px 0 56px;
+      padding: 80px 0 60px;
     }
 
     .badge {
@@ -160,142 +160,72 @@
       opacity: 0.9;
     }
 
-    /* ---- Beta signup form (primary above-the-fold CTA) ---- */
-    .signup-form {
-      max-width: 560px;
-      margin: 0 auto 12px;
+    /* ---- Test group signup form ---- */
+    .test-form {
+      max-width: 520px;
+      margin: 0 auto 24px;
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 22px 24px;
+      border-radius: 12px;
+      padding: 20px 24px;
       text-align: left;
-      box-shadow: 0 6px 22px rgba(37, 99, 235, 0.10);
     }
-    .signup-form__lead {
-      font-size: 15px;
+    .test-form-intro {
+      font-size: 14px;
       color: var(--text);
-      margin-bottom: 14px;
+      margin-bottom: 12px;
       line-height: 1.5;
     }
-    .signup-form__row {
+    .test-form-row {
       display: flex;
-      gap: 10px;
+      gap: 8px;
       flex-wrap: wrap;
     }
-    .signup-form__row input[type="email"] {
-      flex: 1 1 220px;
-      min-width: 0;
-      padding: 12px 14px;
+    .test-form-row input[type="email"] {
+      flex: 1 1 200px;
+      padding: 10px 12px;
       border: 1px solid var(--border);
-      border-radius: 10px;
-      font-size: 15px;
+      border-radius: 8px;
+      font-size: 14px;
       color: var(--text);
       outline: none;
-      background: #fff;
     }
-    .signup-form__row input[type="email"]:focus {
+    .test-form-row input[type="email"]:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
     }
-    .signup-form__btn {
-      flex: 0 0 auto;
+    .test-form-btn {
       background: var(--accent);
       color: #fff;
       border: none;
-      border-radius: 10px;
-      padding: 12px 20px;
-      font-size: 15px;
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
       transition: background 0.15s;
     }
-    .signup-form__btn:hover { background: var(--accent-hover); }
-    .signup-form__btn:disabled { opacity: 0.65; cursor: default; }
-    .signup-form__note {
+    .test-form-btn:hover { background: var(--accent-hover); }
+    .test-form-note {
       font-size: 12px;
       color: var(--text-secondary);
-      margin-top: 12px;
+      margin-top: 10px;
     }
-    .signup-form__note a { color: var(--accent); }
-    .signup-form__error {
-      margin-top: 12px;
-      padding: 10px 12px;
-      font-size: 13.5px;
-      font-weight: 600;
-      line-height: 1.45;
-      color: #b91c1c;
-      background: #fef2f2;
-      border: 1px solid #fecaca;
-      border-radius: 10px;
-    }
-    .signup-form__row input[type="email"][aria-invalid="true"] {
-      border-color: #dc2626;
-      box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
-    }
-    .signup-consent {
-      margin-top: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .signup-consent__row {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      font-size: 12.5px;
-      color: var(--text-secondary);
-      line-height: 1.45;
-      cursor: pointer;
-    }
-    .signup-consent__row input[type="checkbox"] {
-      margin-top: 2px;
-      flex: 0 0 auto;
-      width: 15px;
-      height: 15px;
-      accent-color: var(--accent);
-    }
-    .signup-consent__row a { color: var(--accent); }
-    /* Honeypot: positioned off-screen, never visible or reachable by humans. */
-    .signup-form__hp {
-      position: absolute;
-      left: -6000px;
-      top: auto;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-    }
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-    .signup-status {
+    .test-form-success {
       display: none;
-      max-width: 560px;
-      margin: 0 auto 8px;
-      font-size: 15px;
+      color: var(--green);
+      font-size: 14px;
       font-weight: 600;
       text-align: center;
-      padding: 14px 16px;
-      border-radius: 12px;
+      padding: 12px;
     }
-    .signup-status.is-success {
-      display: block;
-      color: var(--green);
-      background: var(--green-soft);
-      border: 1px solid #a7f3d0;
-    }
-    .signup-status.is-error {
-      display: block;
+    body.form-sent .test-form { display: none; }
+    body.form-sent .test-form-success { display: block; }
+    .test-form-error {
+      display: none;
       color: #b91c1c;
-      background: #fef2f2;
-      border: 1px solid #fecaca;
+      font-size: 13px;
+      text-align: center;
+      padding: 10px;
     }
 
     /* ---- Trust Bar ---- */
@@ -680,26 +610,14 @@
 
     /* ---- Mobile ---- */
     @media (max-width: 540px) {
-      /* Hero + capture form must fit above the fold on a 390x844 phone, so the
-         whole form (input, button AND the required consent block) is visible
-         without scrolling. Trimmed paddings/type sizes rather than the copy. */
-      .hero { padding: 32px 0 28px; }
-      .badge { font-size: 12px; padding: 5px 12px; margin-bottom: 14px; }
-      .hero h1 { font-size: 27px; line-height: 1.15; margin-bottom: 14px; }
-      .hero p { font-size: 15.5px; line-height: 1.5; margin: 0 auto 14px; }
+      .hero { padding: 48px 0 36px; }
+      .hero h1 { font-size: 30px; }
+      .hero p { font-size: 16px; }
       .stat-block { grid-template-columns: 1fr 1fr; }
       .stat-number { font-size: 22px; }
       .trust-bar { gap: 6px; }
       .trust-pill { font-size: 11px; padding: 4px 10px; }
       .pricing-grid { grid-template-columns: 1fr; }
-      .signup-form { padding: 14px 16px; margin-bottom: 10px; }
-      .signup-form__lead { font-size: 13.5px; line-height: 1.45; margin-bottom: 10px; }
-      .signup-form__row input[type="email"] { padding: 11px 12px; font-size: 14.5px; }
-      .signup-form__btn { padding: 11px 18px; font-size: 14.5px; }
-      .signup-form__note { margin-top: 9px; }
-      .signup-consent { margin-top: 10px; gap: 6px; }
-      .signup-consent__row { font-size: 12px; line-height: 1.4; }
-      .cta-note { margin-bottom: 24px; }
     }
   </style>
 </head>
@@ -715,65 +633,11 @@
       you're paying for.<br>
       <span class="highlight">Without connecting your bank.</span>
     </h1>
-
-    <!-- Primary CTA: beta email capture, above the fold.
-         Component: BetaSignupForm — markup + styles + the inline script at the
-         bottom of this file (this site has no build step, so the component ships
-         as HTML/CSS/vanilla JS rather than a framework component).
-         Page/route: "/" (landing page hero). See docs/beta-signup-email-capture.md.
-         Wired to the frozen backend contract:
-           POST /api/beta-signup  { email, honeypot, source, beta_consent, marketing_consent }
-           200 { status: "ok" } | 400 { status: "error", message }
-         The Netlify Forms attributes below are kept ONLY as a migration safety
-         net: while the new API route is not deployed yet, the script falls back
-         to this registered Netlify form (see the submit handler) so signups are
-         still stored. Drop them once /api/beta-signup is live. -->
-    <form id="signup-form" class="signup-form" novalidate name="trackd-test-group" method="POST" data-netlify="true" netlify-honeypot="honeypot">
-      <input type="hidden" name="form-name" value="trackd-test-group" />
-      <p class="signup-form__lead">Get early access to the Trackd Chrome extension &mdash; install instructions sent straight to your inbox.</p>
-      <div class="signup-form__row">
-        <label class="visually-hidden" for="signup-email">Email address</label>
-        <input type="email" name="email" id="signup-email" placeholder="you@example.com" required autocomplete="email" inputmode="email" aria-describedby="signup-note" />
-        <button type="submit" class="signup-form__btn" id="signup-submit">Email me the install link</button>
-      </div>
-      <!-- Inline, human-readable validation/server error. role="alert" announces
-           it on appearance; the form stays visible so the user can retry. -->
-      <p class="signup-form__error" id="signup-error" role="alert" hidden></p>
-      <p class="signup-form__note" id="signup-note">Free tier: up to 10 subs. No bank login.</p>
-      <!-- Consent block. Field names match the compliance spec (task t_bf47c595,
-           runbook docs/beta-email-consent-runbook.md part 1); labels use its
-           recommended wording. beta_consent is REQUIRED and starts unticked;
-           marketing_consent is a separate, optional opt-in. Neither is pre-ticked. -->
-      <div class="signup-consent">
-        <label class="signup-consent__row">
-          <input type="checkbox" name="beta_consent" id="beta-consent" required />
-          <span>Send me the Trackd install instructions and messages about the beta testing group. I have read the <a href="/privacy-policy">Privacy Policy</a>.</span>
-        </label>
-        <label class="signup-consent__row">
-          <input type="checkbox" name="marketing_consent" id="marketing-consent" />
-          <span>Optional: also send me occasional Trackd product news and tips. You can unsubscribe at any time by replying to any email. See the <a href="/privacy-policy">Privacy Policy</a>.</span>
-        </label>
-      </div>
-      <!-- Honeypot (field name `honeypot`, per the API contract). Positioned
-           off-screen and aria-hidden: unreachable and invisible to real users,
-           so any non-empty value means a bot. -->
-      <p class="signup-form__hp" aria-hidden="true">
-        <label for="signup-honeypot">Leave this field empty</label>
-        <input type="text" name="honeypot" id="signup-honeypot" tabindex="-1" autocomplete="off" />
-      </p>
-    </form>
-    <!-- Success replaces the form with this live region; aria-live announces it. -->
-    <div class="signup-status" id="signup-status" role="status" aria-live="polite"></div>
-
-    <!-- Supporting copy: kept in the hero but below the capture form so the
-         headline + form stay above the fold on short viewports. -->
-    <p class="hero__support">
+    <p>
       The average American wastes <strong>$252/year</strong> on unused subscriptions, up 24% from last year.
       Trackd scans your Gmail receipts, finds everything, and helps you cancel what you don't need.
       No bank login. No Plaid. <strong>Your Gmail content is scanned locally in your browser; only anonymous usage analytics are sent.</strong>
     </p>
-
-    <div class="cta-note">Free tier: up to 10 subs. Pro: unlimited for $3.99/mo.</div>
 
     <div class="stat-block">
       <div class="stat-card">
@@ -787,6 +651,24 @@
         <div class="stat-source">CNET/YouGov 2026</div>
       </div>
     </div>
+
+    <!-- Removed data-netlify-recaptcha="false" -->
+    <form name="trackd-test-group" method="POST" data-netlify="true" class="test-form" netlify-honeypot="bot-field">
+      <p class="test-form-intro">Be one of the first to try Trackd. Enter your email to join the testing group, and we'll add you as a test user and email you install instructions.</p>
+      <input type="hidden" name="form-name" value="trackd-test-group" />
+      <!-- This hidden field matches the netlify-honeypot attribute above -->
+      <p style="display:none;"><label>Don't fill this out: <input name="bot-field" /></label></p>
+      <div class="test-form-row">
+        <input type="email" name="email" id="test-email" placeholder="you@example.com" required autocomplete="email" />
+        <button type="submit" class="test-form-btn">Join the testing group</button>
+      </div>
+      <p class="test-form-note">We'll email you to confirm, once you've been added. No spam, unsubscribe anytime.</p>
+    </form>
+    <div class="test-form-success" id="test-form-success">Thanks! You've requested to join the testing group. Check your email for a confirmation from us.</div>
+    <div class="test-form-error" id="test-form-error">Your submission wasn't recorded — this can happen on local previews (Netlify Forms only works on the live trackd-deanware.netlify.app page). Please try again there.</div>
+    <!-- (empty commit trigger) test-form marker -->
+
+    <div class="cta-note">Free tier: up to 10 subs. Pro: unlimited for $3.99/mo.</div>
 
     <div class="trust-bar">
       <span class="trust-pill"><span class="icon">🔒</span> No bank credentials</span>
@@ -1015,172 +897,36 @@
 </div>
 
 <script>
-/*
- * BetaSignupForm — above-the-fold email capture for the Trackd landing page ("/").
- *
- * Endpoint (frozen contract v2, backend built in parallel):
- *   POST /api/beta-signup
- *     request  { email: string, honeypot: string, source: string,
- *                beta_consent: boolean, marketing_consent: boolean }
- *     200      { status: "ok" }
- *     400      { status: "error", message: string }
- *
- * The two consent booleans are the consent evidence the privacy policy relies
- * on (§9); they must reach the server, not just gate the form client-side.
- *
- * State machine: idle -> validating -> loading -> success | error (retryable).
- * Deliberately framework-free: this site is a single static HTML file with no
- * build step, so the component ships as HTML + CSS + this script.
- */
-(function () {
-  "use strict";
+const form = document.querySelector(".test-form");
+const successMessage = document.getElementById("test-form-success");
+const errorMessage = document.getElementById("test-form-error");
 
-  var ENDPOINT = "/api/beta-signup";
-  var SOURCE = "homepage-hero";
-  var SUCCESS = "Check your inbox for install instructions.";
-  var GENERIC_ERROR = "We couldn't save your email just now. Please try again, or email trackd@deanware.com.";
-  // Pragmatic format check: non-empty local part, "@", domain with a dot + TLD.
-  var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+form.addEventListener("submit", (e) => {
+  e.preventDefault();
 
-  var form = document.getElementById("signup-form");
-  if (!form) return;
+  const formData = new FormData(form);
 
-  var statusEl = document.getElementById("signup-status");
-  var errorEl = document.getElementById("signup-error");
-  var emailEl = document.getElementById("signup-email");
-  var honeypotEl = document.getElementById("signup-honeypot");
-  var consentEl = document.getElementById("beta-consent");
-  var marketingEl = document.getElementById("marketing-consent");
-  var btn = document.getElementById("signup-submit");
-  var btnLabel = btn ? btn.textContent : "Submit";
-
-  function clearError() {
-    if (errorEl) {
-      errorEl.hidden = true;
-      errorEl.textContent = "";
-    }
-    if (emailEl) emailEl.removeAttribute("aria-invalid");
-  }
-
-  function showError(message) {
-    if (errorEl) {
-      errorEl.textContent = message;
-      errorEl.hidden = false;
-    }
-    if (emailEl) emailEl.setAttribute("aria-invalid", "true");
-  }
-
-  function setLoading(isLoading) {
-    if (!btn) return;
-    btn.disabled = isLoading;
-    btn.textContent = isLoading ? "Sending\u2026" : btnLabel;
-    btn.setAttribute("aria-busy", isLoading ? "true" : "false");
-  }
-
-  function showSuccess() {
-    form.style.display = "none";
-    clearError();
-    if (statusEl) {
-      statusEl.className = "signup-status is-success";
-      statusEl.textContent = SUCCESS;
-    }
-    // Count stored signups, not just button clicks (the form is JS-submitted).
-    if (window.umami) window.umami.track("beta-signup-submit", { position: "hero" });
-  }
-
-  // MIGRATION SAFETY NET: the endpoint this page used before /api/beta-signup
-  // existed. Netlify Forms stores the submission and its `submission-created`
-  // function sends the install email. Used only when the API route answers 404
-  // (not deployed yet) so live signups are never dropped during the rollout.
-  // Delete this and the Netlify attributes on <form> once the API is live.
-  function submitToLegacyForm() {
-    var body = new URLSearchParams(new FormData(form)).toString();
-    return fetch(form.getAttribute("action") || "/", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body
-    }).then(function (response) {
+  fetch("/", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(formData).toString(),
+  })
+    .then((response) => {
       if (response.ok) {
-        console.warn("beta-signup: /api/beta-signup is not deployed; stored via the Netlify Forms fallback.");
-        if (window.umami) window.umami.track("beta-signup-fallback", { reason: "api-404" });
+        // Hide form and show success message
+        form.style.display = "none";
+        successMessage.style.display = "block";
+        errorMessage.style.display = "none";
+      } else {
+        throw new Error("Form submission failed");
       }
-      return { ok: response.ok, data: { status: response.ok ? "ok" : "error" } };
-    });
-  }
-
-  form.addEventListener("submit", function (event) {
-    event.preventDefault();
-    clearError();
-
-    // Honeypot: only a bot fills the off-screen field. Tarpit it — show the
-    // normal success state so the bot does not retry, and send nothing.
-    if (honeypotEl && honeypotEl.value.trim() !== "") {
-      showSuccess();
-      return;
-    }
-
-    // 1. Client-side email validation before any network call.
-    var email = emailEl ? emailEl.value.trim() : "";
-    if (!EMAIL_RE.test(email)) {
-      showError("Please enter a valid email address, like you@example.com.");
-      if (emailEl) emailEl.focus();
-      return;
-    }
-
-    // 2. Required consent gate (the checkbox is `required` and unticked by default).
-    if (consentEl && !consentEl.checked) {
-      showError("Please tick the box to confirm you want the install instructions.");
-      consentEl.focus();
-      return;
-    }
-
-    // 3. Loading state: disable the button, block double submits.
-    setLoading(true);
-
-    fetch(ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({
-        email: email,
-        honeypot: honeypotEl ? honeypotEl.value : "",
-        source: SOURCE,
-        // Consent evidence (contract v2, frozen by compliance): booleans, so the
-        // server can record the lawful basis for the signup and the install email
-        // and tell an unticked marketing opt-in apart from a missing one.
-        beta_consent: consentEl.checked === true,
-        marketing_consent: marketingEl ? marketingEl.checked === true : false
-      })
     })
-      .then(function (response) {
-        // Route not deployed yet -> legacy Netlify Forms transport (see above).
-        if (response.status === 404) return submitToLegacyForm();
-        // A 400/500 still carries JSON; never fail on an unparseable body.
-        return response.json()
-          .catch(function () { return {}; })
-          .then(function (data) { return { ok: response.ok, data: data }; });
-      })
-      .then(function (result) {
-        if (result.ok && result.data && result.data.status === "ok") {
-          showSuccess();
-          return;
-        }
-        // Contract error: surface the server's message, else a safe generic one.
-        var message =
-          result.data && typeof result.data.message === "string" && result.data.message
-            ? result.data.message
-            : GENERIC_ERROR;
-        showError(message);
-      })
-      .catch(function () {
-        // Network failure / endpoint unreachable.
-        showError(GENERIC_ERROR);
-      })
-      .then(function () {
-        // Error path only (success hides the form): re-enable so the user can retry.
-        setLoading(false);
-      });
-  });
-})();
+    .catch((error) => {
+      // Show error message
+      errorMessage.style.display = "block";
+      successMessage.style.display = "none";
+    });
+});
 </script>
 
 </body>
