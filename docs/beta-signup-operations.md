@@ -79,7 +79,7 @@ returns `400`.
 | `honeypot` | string | yes | Spam trap. Must be an empty string. A non-empty value is treated as a bot. |
 | `source` | string | no | Free-form attribution label. Trimmed to 120 characters. Absent or empty becomes `unknown`. |
 | `beta_consent` | boolean | yes | Must be exactly `true`. Missing, `false`, `"true"`, `1` and `null` all return the generic `400` (same body as the honeypot). Recorded as `consent.beta` + a server-clock `consent.betaAt`. |
-| `marketing_consent` | boolean | no | Promotional opt-in. `true` only on an explicit boolean `true`; anything else means no marketing consent. Recorded as `consent.marketing` + `consent.marketingAt` (server clock) when true, `null` otherwise. Only a `true` address reaches the promotional audience. |
+| `marketing_consent` | boolean | no | Promotional opt-in. `true` only on an explicit boolean `true`; anything else means no marketing consent. Recorded as `consent.marketing` + `consent.marketingAt` (server clock) when true, `null` otherwise. Applied to the promotional audience in both directions: a `true` address is created in it, and any other address is removed from it. |
 
 The body is capped at 2048 bytes. An oversized body is rejected with `400`
 before any storage happens.
@@ -121,7 +121,10 @@ address. The messages above are the complete set a client can receive.
   and the stored `consent.betaAt` is how it is demonstrated (Art. 7(1)).
 - `marketing_consent`: optional, separate purpose. It is never inferred from
   another field. An unticked box records `consent.marketing: false` (a recorded
-  refusal) rather than being silently dropped.
+  refusal) rather than being silently dropped, and the promotional audience is
+  reconciled with it: `true` creates the contact in the promotional list,
+  anything else deletes it from that list, so a later opt-out is actually applied
+  (GDPR Art. 7(3)) instead of only being written down.
 - `source`: stored in the operational Blobs marker record only. It is never sent
   to the email provider, so it does not appear in the SES contact list.
 - `email`: a repeat signup is accepted and handled idempotently (see section 7).
@@ -141,12 +144,16 @@ This order matters when you are diagnosing a response:
    submissions do not consume a slot.
 9. Provider readiness check (`500` if SES is unconfigured). A slot has already
    been claimed at this point.
-10. Existing-marker read and resend-cooldown check (early `200` if a confirmation
-    was sent recently).
-11. `storeSignup`: the address is added to the SES transactional contact list
-    (and the promotional list only when `marketing_consent` is true, or the Blobs
-    fallback when no contact list is configured), and the `consent` block is
-    recorded.
+10. Existing-marker read and resend-cooldown check. If a confirmation was sent
+    recently: the consent block is refreshed, the promotional audience is
+    reconciled with it, and the request returns an early `200` — or a generic
+    `500` when that reconcile fails, so a withdrawal is never reported as applied
+    when it was not.
+11. `storeSignup`: the address is added to the SES transactional contact list and
+    the promotional list is reconciled with the submitted consent (created on
+    `true`, deleted otherwise), or the Blobs fallback is used when no contact list
+    is configured; the `consent` block is recorded only after that reconcile
+    succeeded. A reconcile failure is a generic `500` and writes no consent value.
 12. `sendConfirmation`: the confirmation email is sent through SES.
 13. `markConfirmationSent`: the send time and delivery id are recorded.
 14. `200 { "status": "ok" }`.
@@ -160,18 +167,25 @@ function bundle small for a service that makes two API calls.
 Why SES: the endpoint needs exactly two capabilities, send one transactional
 message and hold an address list. SES provides both, and the AWS account was
 already available, so there was no new vendor, no new data-processing agreement,
-and no new bill. The transport sits behind a three-method interface in
-`netlify/lib/ses-provider.js` (`ready`, `addContact`, `sendConfirmation`), so
-swapping providers later means writing one file and changing one `require` in the
-Netlify adapter.
+and no new bill. The transport sits behind a small interface in
+`netlify/lib/ses-provider.js` (`ready`, `promoListConfigured`, `addContact`,
+`deleteContact`, `sendConfirmation`), so swapping providers later means writing
+one file and changing one `require` in the Netlify adapter.
 
-Two SES operations are used:
+Four SES operations are used:
 
 | Operation | SES v2 call |
 | --- | --- |
 | Add the address to the transactional list | `POST /v2/email/contact-lists/{SES_CONTACT_LIST}/contacts` (address in the body) |
-| Add a marketing-consented address to the promotional list | `POST /v2/email/contact-lists/{SES_PROMO_CONTACT_LIST}/contacts` — only when `marketing_consent` is true |
+| Add a marketing-consented address to the promotional list | `POST /v2/email/contact-lists/{SES_PROMO_CONTACT_LIST}/contacts` — only when `marketing_consent` is `true`; `AlreadyExistsException` is success |
+| Remove an address that has not consented (or has withdrawn) | `DELETE /v2/email/contact-lists/{SES_PROMO_CONTACT_LIST}/contacts/{email}` — the address is a URI path parameter; `NotFoundException` means it was already absent, which is the desired state |
 | Send the confirmation | `POST /v2/email/outbound-emails` |
+
+The transactional and promotional writes happen before the consent marker is
+written; if any of them fails the request returns `500` and no consent value is
+recorded (the previous one, which still matches the lists, stays). The
+promotional list is therefore the consent gate: only an address whose request
+carried `marketing_consent: true` is in it, and a withdrawal removes it.
 
 The address is written to the contact list before the email is sent. If the send
 fails, the request returns `500` and the address stays in the list. A retry finds
@@ -179,8 +193,13 @@ it already present (no duplicate row) and re-sends the confirmation.
 
 Required IAM permissions: `ses:SendEmail` on the sending identity, and
 `ses:CreateContact` on the contact list when `SES_CONTACT_LIST` is set (scope it
-to the promotional list too when `SES_PROMO_CONTACT_LIST` is set). Scope both to
-the specific resource ARN. Do not use root credentials.
+to the promotional list too when `SES_PROMO_CONTACT_LIST` is set). When
+`SES_PROMO_CONTACT_LIST` is set, `ses:DeleteContact` on that list is also
+required: the promotional audience is reconciled with the submitted consent, so
+every signup that is not a marketing opt-in deletes the address from it, and
+without the permission those requests fail with a generic `500` rather than being
+accepted while the address stays in the audience. Scope each to the specific
+resource ARN. Do not use root credentials.
 
 ## 4. Where the signup list lives and how to inspect it
 
@@ -189,7 +208,7 @@ There are two stores, with different roles.
 | Store | Role | Contents |
 | --- | --- | --- |
 | AWS SES contact list named by `SES_CONTACT_LIST` (for example `trackd-beta`) | Authoritative transactional list | One contact per address. This is the list you export or read. |
-| AWS SES contact list named by `SES_PROMO_CONTACT_LIST` (optional) | Promotional audience | Only addresses whose request carried `marketing_consent: true`. Absent when unset. |
+| AWS SES contact list named by `SES_PROMO_CONTACT_LIST` (optional) | Promotional audience | Membership is reconciled with the submitted consent: an address whose request carried `marketing_consent: true` is in it, and any other address is removed from it. Absent when unset. |
 | Netlify Blobs store `beta-signups` (`SIGNUP_BLOBS_STORE`) | Operational state + consent evidence | Rate-limit slot keys (`rl:<ipHash>:<bucket>:<slot>`) and one signup marker per address (`signup:<HMAC>`), including the `consent` block. |
 
 When `SES_CONTACT_LIST` is set, the Blobs marker holds no raw address. The SES
@@ -266,7 +285,7 @@ then redeploy so the function picks them up. Names only; never commit values.
 | `AWS_REGION` | yes (in practice) | SES region, for example `us-east-1`. `AWS_DEFAULT_REGION` is accepted as a fallback; the code default is `us-east-1`. |
 | `SIGNUP_FROM_EMAIL` | yes | SES-verified sender identity, for example `Trackd <hello@deanware.com>`. Without it the endpoint returns a generic `500` and sends nothing. |
 | `SES_CONTACT_LIST` | yes for the list | Name of the SES contact list that holds the beta (transactional) list. Every beta signup joins it. Optional at the code level; without it there is no SES list and the address falls back to Blobs. |
-| `SES_PROMO_CONTACT_LIST` | no | Name of a second SES contact list acting as the promotional audience. Only addresses whose request carried `marketing_consent: true` are added. Unset means no promotional audience, which is the safe default. |
+| `SES_PROMO_CONTACT_LIST` | no | Name of a second SES contact list acting as the promotional audience. Membership is reconciled with the submitted consent on every accepted request: created on `marketing_consent: true`, deleted otherwise (needs `ses:DeleteContact`). Unset means no promotional audience, which is the safe default. |
 | `SIGNUP_REPLY_TO` | no | Reply-to address. Defaults to `trackd@deanware.com`. |
 | `SIGNUP_HASH_SALT` | recommended | Secret used to HMAC addresses and IPs before they become store keys or log values. Set it once; changing it changes the keys and resets duplicate suppression. |
 | `AWS_SESSION_TOKEN` | no | Only for temporary (STS) credentials. |
@@ -385,17 +404,21 @@ The consent block is part of the overwritten marker. A repeat keeps the earliest
 recorded `betaAt`/`marketingAt`, so the original consent act is preserved rather
 than re-dated; a later signup that turns `marketing_consent` on sets
 `marketingAt` for the first time, and one that turns it off records
-`marketing: false, marketingAt: null`.
+`marketing: false, marketingAt: null`. Each of those also changes the promotional
+audience: on `true` the address is created in `SES_PROMO_CONTACT_LIST`, on
+anything else it is deleted from it, so the marker and the list never disagree.
 
 On the resend-cooldown path (a repeat within `SIGNUP_RESEND_COOLDOWN_SECONDS`)
-the handler returns the idempotent `200` without re-sending, but it still writes a
-changed consent value to the marker, so a repeat signup that flips the marketing
-box is recorded rather than silently ignored.
+the handler returns the idempotent `200` without re-sending, but the submitted
+consent still takes effect: a changed value is written to the marker and the
+promotional audience is reconciled with it, so a repeat signup that flips the
+marketing box is recorded *and applied* rather than silently ignored. If that
+reconcile fails the request returns `500` (nothing is recorded) and the client can
+retry.
 
-On top of that, the marker records `confirmationSentAt`. If a confirmation was
-already sent within `SIGNUP_RESEND_COOLDOWN_SECONDS` (default 24 hours), the
-handler returns `200 { "status": "ok" }` immediately without storing or sending
-anything again.
+If the confirmation was already sent within `SIGNUP_RESEND_COOLDOWN_SECONDS`
+(default 24 hours), no second email is sent; nothing is stored twice, and the only
+provider work is that consent reconcile.
 
 After the cooldown expires, a repeat signup sends the confirmation again (allowed
 by the contract) and still does not duplicate the contact.
@@ -415,7 +438,17 @@ npm test
 
 The suite starts real local HTTP servers standing in for SES, so the handler, the
 SES provider, the SigV4 signer, and the CSV export are all exercised over actual
-sockets. Expected: 48 tests, 48 pass.
+sockets. Expected: 60 tests, 60 pass.
+
+Consent/audience consistency, against a stateful SES stub with the real provider:
+
+```bash
+node scripts/security/consent-membership-consistency.js
+```
+
+Expected: every row `CONSISTENT: true` (stored `consent.marketing` === membership
+of the promotional list, through an opt-in, a withdrawal, and both of those on the
+resend-cooldown path), exit code 0.
 
 Against a deployed site:
 
@@ -442,8 +475,9 @@ curl -sS -i -X POST https://trackd.deanware.com/api/beta-signup \
   --data '{"email":"not-an-email","honeypot":"","source":"curl-test","beta_consent":true}'
 ```
 
-Then confirm the address appears in the SES transactional contact list (and,
-only when `marketing_consent: true`, in the promotional list) and that the
+Then confirm the address appears in the SES transactional contact list (and, only
+when `marketing_consent: true`, in the promotional list — a `marketing_consent:
+false` submission must *remove* an address that was there before) and that the
 confirmation email arrived with the Chrome Web Store link and the five numbered
 steps.
 
@@ -456,8 +490,10 @@ steps.
 | `500` with a region or endpoint error in the logs | `AWS_REGION` does not match the region of the verified sending identity. |
 | `400` "could not be processed" from a working client | Wrong `Content-Type`, body over 2048 bytes, the form's honeypot field is being filled, or `beta_consent` is not exactly boolean `true` (a missing/false/stringified tick fails here). |
 | `400` "too many signup attempts" during manual testing | You hit `RATE_LIMIT_MAX` within `RATE_LIMIT_WINDOW_SECONDS` from one IP. Wait for the window to reset or raise the limit. |
-| Confirmation not re-sent to the same address | A confirmation was sent within `SIGNUP_RESEND_COOLDOWN_SECONDS` (default 24 hours). This is the idempotent path. |
+| Confirmation not re-sent to the same address | A confirmation was sent within `SIGNUP_RESEND_COOLDOWN_SECONDS` (default 24 hours). This is the idempotent path; the consent block and the promotional audience are still updated. |
 | Address stored but no email | The send failed; the request returned `500` and the address stayed in the list. Retry the same signup to re-send without duplicating the contact. |
+| `500` on signups without `marketing_consent`, logs show `promo_delete_http_403` | `SES_PROMO_CONTACT_LIST` is set but the IAM policy lacks `ses:DeleteContact`. Add it; membership must be reconcilable or the promotional list stops being the consent gate. |
+| A withdrawn address is still in the promotional list | The reconcile failed and the request returned `500` (check the logs for `promo_delete_http_*`); it is not a silent success. Fix the permission/outage and have the visitor re-submit, or remove the address from the list in the SES console. |
 
 ## Related documents
 

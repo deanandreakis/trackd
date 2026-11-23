@@ -91,9 +91,11 @@ repo's documented convention would be `public/__forms.html`).
 > `netlify/lib/beta-signup.js` validates `beta_consent` (must be exactly boolean `true`, else the same
 > generic `400` as the honeypot) and records both values with **server-clock** timestamps in the stored
 > marker: `consent: { beta, betaAt, marketing, marketingAt }`. That block is the server-side consent
-> record (GDPR Art. 7(1)). Only an address whose request carried `marketing_consent: true` is added to
-> the promotional SES list (`SES_PROMO_CONTACT_LIST`); every signup joins the transactional list
-> (`SES_CONTACT_LIST`). The Netlify Forms row described above is no longer the only consent evidence —
+> record (GDPR Art. 7(1)). Membership of the promotional SES list (`SES_PROMO_CONTACT_LIST`) is
+> **reconciled** with `marketing_consent` on every accepted request — created when it is `true`, removed
+> when it is anything else, including on the resend-cooldown path — so a withdrawal is applied, not just
+> written down (Art. 7(3)); every signup joins the transactional list
+> (`SES_CONTACT_LIST`), which is never used for promotional sends. The Netlify Forms row described above is no longer the only consent evidence —
 > but note `POST /api/beta-signup` is still **404 on the live site**, so real traffic is still captured
 > by the Netlify Forms path until the endpoint is deployed.
 
@@ -131,13 +133,17 @@ why it was sent and how to stop it. Two points:
 1. Unsubscribe replies land in `trackd@deanware.com` (Google Workspace — `deanware.com` MX is
    `aspmx.l.google.com`; reply-to is already set to that address in the SES provider).
 2. Remove the address from the **AWS SES contact list** (the beta list) and from any future send, and add
-   it to the suppression list (below).
+   it to the suppression list (below). If a promotional list (`SES_PROMO_CONTACT_LIST`) is configured,
+   remove the address from that too — and prefer the form path, which reconciles both automatically: a
+   re-submission with `marketing_consent` unticked deletes the address from the promotional list.
 3. Reply to confirm removal.
 
-Deletion command for the beta list (SES v2):
+Deletion commands (SES v2):
 
 ```bash
 aws sesv2 delete-contact --contact-list-name trackd-beta --email-address user@example.com
+# when a promotional list is configured, that list too:
+aws sesv2 delete-contact --contact-list-name trackd-promo --email-address user@example.com
 ```
 
 Deadlines: **promptly** for GDPR, within **10 business days** for CAN-SPAM. Opt-out may not require

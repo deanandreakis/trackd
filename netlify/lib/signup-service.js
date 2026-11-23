@@ -25,14 +25,33 @@
 //                                         beta consent is implied true because
 //                                         the HTTP handler rejects any other
 //                                         value before the service is reached.
+//                                         The provider's lists are reconciled
+//                                         with that value before the marker is
+//                                         written (see below).
 //   claimConfirmation(email, windowMs) -> true if this request may send now
 //   releaseConfirmation(email, windowMs) -> drop a claim after a failed send
-//   recordConsent(email, consent)      -> refresh the consent block only
+//   recordConsent(email, consent)      -> refresh the consent block, reconcile
+//                                         the promotional audience with it, and
+//                                         return the marker (StoreError /
+//                                         ProviderError). Null when there is no
+//                                         marker.
 //   sendConfirmation(email)            -> { id }               (ProviderError)
 //   markConfirmationSent(email, meta)  -> updated marker       (StoreError)
 //
 // Injected `store` is the Netlify Blobs adapter (get/set/delete). Injected
-// `provider` is the SES transport (ready/addContact/sendConfirmation).
+// `provider` is the SES transport (ready/addContact/sendConfirmation, plus
+// promoListConfigured, which tells the service whether a promotional audience
+// exists to reconcile).
+//
+// Consent and the audience are kept in agreement. `provider.addContact` is
+// called with the submitted marketing consent on every path that accepts a
+// request, and it reconciles the list membership to that value in both
+// directions, so a withdrawal removes the address from the promotional
+// audience and an opt-in adds it — the stored `consent` block and the audience
+// the marker is evidence for can never disagree. The provider call happens
+// before the marker write: a failed reconcile leaves the previous (still
+// agreeing) value in place and surfaces the error instead of recording a
+// choice the audience never applied.
 //
 // Two layers of idempotency, so a repeat signup is never double-stored:
 //   1. The provider's audience/list is keyed by address; a repeat returns the
@@ -192,10 +211,28 @@ function createSignupService(options) {
       const hashValue = emailHash(normalized);
       const key = 'signup:' + hashValue;
 
-      // 1. The list. The provider keys contacts by address, so a repeat is its
-      //    AlreadyExists path rather than a second entry. The marketing flag is
-      //    passed through so only a consented address can reach a promotional
-      //    audience (see netlify/lib/ses-provider.js addContact).
+      // 1. The prior marker, read before the provider call so the write below
+      //    can preserve createdAt, confirmationSentAt and the earliest consent
+      //    timestamps. A read failure is not fatal: the audience (when
+      //    configured) is the authoritative duplicate check.
+      let existing = null;
+      try {
+        existing = await store.get(key);
+      } catch (err) {
+        logger.error('signup-service: marker read failed', {
+          emailHash: shortHash(hashValue),
+          code: err && err.code ? err.code : 'store_error',
+        });
+        existing = null;
+      }
+
+      // 2. The lists, reconciled with the submitted consent. The provider keys
+      //    contacts by address, so a repeat is its AlreadyExists path rather
+      //    than a second entry, and the marketing flag is applied in both
+      //    directions: present when consented, removed when not (see
+      //    netlify/lib/ses-provider.js addContact). Done before the marker
+      //    write so a failed reconcile cannot leave evidence behind for a
+      //    change the audience never took.
       let contact = {
         stored: false,
         duplicate: false,
@@ -216,20 +253,8 @@ function createSignupService(options) {
         throw asProviderError(err, 'contact');
       }
 
-      // 2. The marker — one key per address. Preserve the original createdAt and
+      // 3. The marker — one key per address. Preserve the original createdAt and
       //    any prior confirmation time so a repeat does not reset history.
-      let existing = null;
-      try {
-        existing = await store.get(key);
-      } catch (err) {
-        // Non-fatal: the audience (when configured) is the authoritative list.
-        logger.error('signup-service: marker read failed', {
-          emailHash: shortHash(hashValue),
-          code: err && err.code ? err.code : 'store_error',
-        });
-        existing = null;
-      }
-
       const record = Object.assign({}, existing || {}, {
         source: sourceValue,
         createdAt: (existing && existing.createdAt) || now(),
@@ -282,11 +307,22 @@ function createSignupService(options) {
       };
     },
 
-    // Refresh just the consent block of an existing marker. Used on the
+    // Refresh the consent block of an existing marker *and* bring the
+    // promotional audience to the state it records. Used on the
     // resend-cooldown path: the address was already stored and emailed
     // recently, so the handler returns the idempotent 200 without a new send —
-    // but a visitor whose marketing choice changed must not have that choice
-    // silently dropped. No-op when the value is unchanged or no marker exists.
+    // but the visitor's latest choice is still evidence, and it must have
+    // effect: a withdrawal has to actually leave the promotional list (GDPR
+    // Art. 7(3)) and an opt-in has to actually reach it, otherwise the list is
+    // not the consent gate the docs say it is.
+    //
+    // Order: the audience first, then the marker. If the provider call throws,
+    // nothing is written and the caller must report failure (never a 200) — the
+    // record keeps its previous value, which still matches the audience.
+    //
+    // Fast path: an unchanged value with no promotional audience configured has
+    // nothing to reconcile and nothing new to record, so it stays a pure read
+    // (no provider call, no write).
     async recordConsent(email, consent) {
       const normalized = normalizeEmail(email) || email;
       const key = signupKey(normalized);
@@ -295,9 +331,17 @@ function createSignupService(options) {
 
       const wantsMarketing = Boolean(consent && consent.marketing === true);
       const prior = existing.consent || {};
-      if (prior.marketing === wantsMarketing && prior.beta === true) {
-        return existing;
+      const unchanged = prior.marketing === wantsMarketing && prior.beta === true;
+
+      if (unchanged && !provider.promoListConfigured) return existing;
+
+      try {
+        await provider.addContact(normalized, { marketing: wantsMarketing });
+      } catch (err) {
+        throw asProviderError(err, 'contact');
       }
+
+      if (unchanged) return existing;
 
       const record = Object.assign({}, existing, {
         consent: buildConsent(prior, wantsMarketing, now()),

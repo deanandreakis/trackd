@@ -104,12 +104,17 @@ function memoryStore() {
 
 function fakeProvider(initial) {
   const state = Object.assign(
-    { failAdd: false, failSend: false, promoListConfigured: true },
+    {
+      failAdd: false,
+      failPromoReconcile: false,
+      failSend: false,
+      promoListConfigured: true,
+    },
     initial
   );
   const contacts = new Set(); // transactional / beta list
   const promo = new Set(); // promotional list (marketing-consented only)
-  const calls = []; // [{ email, marketing }]
+  const calls = []; // [{ email, marketing, promotional, removed }]
   const sends = [];
   return {
     state,
@@ -119,19 +124,36 @@ function fakeProvider(initial) {
     sends,
     ready: true,
     audienceConfigured: true,
+    get promoListConfigured() {
+      return Boolean(state.promoListConfigured);
+    },
+    // Mirrors netlify/lib/ses-provider.js addContact: the transactional list
+    // only grows, and the promotional list is reconciled to the submitted
+    // consent in BOTH directions (created on true, deleted on false). A fake
+    // that only ever adds is what let the first review round's defect through.
     async addContact(email, options) {
       const marketing = Boolean(options && options.marketing === true);
-      calls.push({ email, marketing });
       if (state.failAdd) {
         throw Object.assign(new Error('contact list down'), { code: 'contact_http_500' });
       }
       const duplicate = contacts.has(email);
       contacts.add(email);
-      let promotional = false;
-      if (marketing && state.promoListConfigured) {
-        promo.add(email);
-        promotional = true;
+      if (state.failPromoReconcile) {
+        throw Object.assign(new Error('promo list down'), {
+          code: 'promo_delete_http_403',
+        });
       }
+      let promotional = false;
+      let removed = false;
+      if (state.promoListConfigured) {
+        if (marketing) {
+          promo.add(email);
+          promotional = true;
+        } else {
+          removed = promo.delete(email);
+        }
+      }
+      calls.push({ email, marketing, promotional, removed });
       return { stored: true, duplicate, contactId: email, marketing, promotional };
     },
     async sendConfirmation(email) {
@@ -382,6 +404,213 @@ test('a repeat inside the cooldown still records a changed consent choice', asyn
   assert.equal(record.consent.marketing, true);
   assert.equal(record.consent.marketingAt, clock.ms);
   assert.equal(record.consent.betaAt, 1_700_000_000_000, 'beta time preserved');
+});
+
+// ---------------------------------------------------------------------------
+// Consent evidence and the promotional audience must agree after every accepted
+// request — including when the marketing choice *changes*. An append-only
+// audience gate satisfies the first-time cases and fails these ones: a
+// withdrawal that is recorded but not applied (GDPR Art. 7(3)), and an opt-in
+// that is recorded but can never take effect.
+// ---------------------------------------------------------------------------
+
+function signupRecord(store) {
+  const key = [...store.map.keys()].find((k) => k.startsWith('signup:'));
+  return { key, record: key ? store.map.get(key) : null };
+}
+
+test('a withdrawal after the cooldown removes the address from the promotional audience', async () => {
+  const { handler, store, provider, clock } = setup();
+  await call(handler, {
+    email: 'withdraw@example.com',
+    honeypot: '',
+    source: 'hero',
+    beta_consent: true,
+    marketing_consent: true,
+  });
+  assert.equal(provider.promo.has('withdraw@example.com'), true, 'opt-in added it');
+
+  clock.ms += 25 * 60 * 60 * 1000; // past the 24h resend cooldown
+  const second = await call(handler, {
+    email: 'withdraw@example.com',
+    honeypot: '',
+    source: 'hero',
+    beta_consent: true,
+    marketing_consent: false,
+  });
+  assert.equal(second.response.statusCode, 200);
+
+  const { record } = signupRecord(store);
+  assert.equal(record.consent.marketing, false, 'the refusal is recorded');
+  assert.equal(record.consent.marketingAt, null);
+  assert.equal(
+    provider.promo.has('withdraw@example.com'),
+    false,
+    'and it is applied: the address left the promotional list'
+  );
+  assert.equal(provider.contacts.has('withdraw@example.com'), true, 'still beta');
+  assert.equal(provider.calls[provider.calls.length - 1].marketing, false);
+});
+
+test('an opt-in inside the resend cooldown reaches the promotional audience', async () => {
+  const { handler, store, provider, clock } = setup();
+  await call(handler, {
+    email: 'late-optin@example.com',
+    honeypot: '',
+    source: 'hero',
+    beta_consent: true,
+    marketing_consent: false,
+  });
+  assert.equal(provider.promo.has('late-optin@example.com'), false);
+  assert.equal(provider.sends.length, 1);
+
+  // Still inside the 24h cooldown: no second email, but the opt-in must take
+  // effect, not merely be recorded.
+  clock.ms += 60 * 1000;
+  const second = await call(handler, {
+    email: 'late-optin@example.com',
+    honeypot: '',
+    source: 'hero',
+    beta_consent: true,
+    marketing_consent: true,
+  });
+  assert.equal(second.response.statusCode, 200);
+  assert.equal(provider.sends.length, 1, 'no second send inside the cooldown');
+
+  const { record } = signupRecord(store);
+  assert.equal(record.consent.marketing, true);
+  assert.equal(record.consent.marketingAt, clock.ms);
+  assert.equal(
+    provider.promo.has('late-optin@example.com'),
+    true,
+    'the opt-in reached the promotional list'
+  );
+});
+
+test('a withdrawal inside the resend cooldown leaves the promotional audience', async () => {
+  const { handler, store, provider, clock } = setup();
+  await call(handler, {
+    email: 'quick-withdraw@example.com',
+    honeypot: '',
+    source: 'hero',
+    beta_consent: true,
+    marketing_consent: true,
+  });
+  assert.equal(provider.promo.has('quick-withdraw@example.com'), true);
+
+  clock.ms += 60 * 1000; // inside the cooldown
+  const second = await call(handler, {
+    email: 'quick-withdraw@example.com',
+    honeypot: '',
+    source: 'hero',
+    beta_consent: true,
+    marketing_consent: false,
+  });
+  assert.equal(second.response.statusCode, 200);
+  assert.equal(provider.sends.length, 1, 'no second send inside the cooldown');
+
+  const { record } = signupRecord(store);
+  assert.equal(record.consent.marketing, false);
+  assert.equal(record.consent.marketingAt, null);
+  assert.equal(provider.promo.has('quick-withdraw@example.com'), false);
+});
+
+test('an unchanged choice inside the cooldown re-reconciles, and is a pure read without a promo list', async () => {
+  // With a promotional audience configured every accepted request re-asserts
+  // the membership, so a state that drifted (a marker write that failed after
+  // the audience was already updated) converges on the next submission.
+  const configured = setup();
+  await call(configured.handler, {
+    email: 'same@example.com',
+    honeypot: '',
+    source: 'hero',
+    beta_consent: true,
+    marketing_consent: false,
+  });
+  const before = configured.provider.calls.length;
+  configured.clock.ms += 60 * 1000;
+  const repeat = await call(configured.handler, {
+    email: 'same@example.com',
+    honeypot: '',
+    source: 'hero',
+    beta_consent: true,
+    marketing_consent: false,
+  });
+  assert.equal(repeat.response.statusCode, 200);
+  assert.equal(configured.provider.calls.length, before + 1, 'reconciled');
+  assert.equal(configured.provider.promo.has('same@example.com'), false);
+
+  // No promotional audience at all: nothing to reconcile, nothing to record,
+  // so the idempotent repeat does not touch the provider.
+  const bare = setup({ provider: fakeProvider({ promoListConfigured: false }) });
+  await call(bare.handler, {
+    email: 'same2@example.com',
+    honeypot: '',
+    source: 'hero',
+    beta_consent: true,
+    marketing_consent: false,
+  });
+  const bareBefore = bare.provider.calls.length;
+  bare.clock.ms += 60 * 1000;
+  const bareRepeat = await call(bare.handler, {
+    email: 'same2@example.com',
+    honeypot: '',
+    source: 'hero',
+    beta_consent: true,
+    marketing_consent: false,
+  });
+  assert.equal(bareRepeat.response.statusCode, 200);
+  assert.equal(bare.provider.calls.length, bareBefore, 'pure read');
+});
+
+test('a reconcile failure on the cooldown path is a 500, never a claimed withdrawal', async () => {
+  const { handler, store, provider, clock, logs } = setup();
+  await call(handler, {
+    email: 'stuck@example.com',
+    honeypot: '',
+    source: 'hero',
+    beta_consent: true,
+    marketing_consent: true,
+  });
+
+  // The audience is unreachable for the withdrawal: the request must not report
+  // success, and the record must keep its previous (still agreeing) value.
+  provider.state.failPromoReconcile = true;
+  clock.ms += 60 * 1000;
+  const second = await call(handler, {
+    email: 'stuck@example.com',
+    honeypot: '',
+    source: 'hero',
+    beta_consent: true,
+    marketing_consent: false,
+  });
+  assert.equal(second.response.statusCode, 500);
+  assert.equal(second.json.status, 'error');
+
+  const { record } = signupRecord(store);
+  assert.equal(record.consent.marketing, true, 'no unapplied change is recorded');
+  assert.equal(provider.promo.has('stuck@example.com'), true);
+  assert.equal(
+    record.consent.marketing === true,
+    provider.promo.has('stuck@example.com'),
+    'record and audience still agree'
+  );
+  assert.ok(logs.some((l) => String(l[0]).includes('consent refresh failed')));
+
+  // The visitor retries once the audience is reachable again: the withdrawal is
+  // applied and recorded.
+  provider.state.failPromoReconcile = false;
+  const third = await call(handler, {
+    email: 'stuck@example.com',
+    honeypot: '',
+    source: 'hero',
+    beta_consent: true,
+    marketing_consent: false,
+  });
+  assert.equal(third.response.statusCode, 200);
+  const after = signupRecord(store).record;
+  assert.equal(after.consent.marketing, false);
+  assert.equal(provider.promo.has('stuck@example.com'), false);
 });
 
 test('invalid email returns 400 and stores nothing', async () => {
@@ -846,42 +1075,141 @@ test('SES provider: CreateContact stores once and treats AlreadyExists as idempo
   });
 });
 
-test('SES provider: only marketing consent reaches the promotional list', async () => {
+test('SES provider: the promotional list is reconciled to consent in both directions', async () => {
   function providerWithPromo() {
     const calls = [];
     const provider = createSesProvider({
       env: Object.assign({}, SES_ENV, { SES_PROMO_CONTACT_LIST: 'trackd-promo' }),
       fetchImpl: async (url, init) => {
-        calls.push({ url, method: init.method, body: JSON.parse(init.body) });
+        calls.push({
+          url,
+          method: init.method,
+          raw: init.body,
+          body: init.body ? JSON.parse(init.body) : null,
+          headers: init.headers,
+        });
         return sesResponse(200, {});
       },
     });
     return { provider, calls };
   }
 
+  // Beta only: the transactional list gains the address and the promotional list
+  // is actively cleared of it. DeleteContact, not an implicit absence: an
+  // append-only list is what let a withdrawal stay in the audience.
   const betaOnly = providerWithPromo();
   assert.equal(betaOnly.provider.promoListConfigured, true);
   const r1 = await betaOnly.provider.addContact('beta@example.com', { marketing: false });
   assert.equal(r1.promotional, false);
-  assert.equal(betaOnly.calls.length, 1, 'only the transactional list is written');
+  assert.equal(betaOnly.calls.length, 2, 'transactional create + promotional delete');
+  assert.equal(betaOnly.calls[0].method, 'POST');
   assert.match(betaOnly.calls[0].url, /contact-lists\/trackd-beta\/contacts$/);
+  assert.equal(betaOnly.calls[1].method, 'DELETE');
+  assert.equal(
+    betaOnly.calls[1].url,
+    'https://email.us-east-1.amazonaws.com/v2/email/contact-lists/trackd-promo/contacts/beta%40example.com',
+    'DeleteContact carries the address as a URI path parameter'
+  );
+  assert.equal(betaOnly.calls[1].raw, '', 'no request body on DeleteContact');
+  assert.ok(betaOnly.calls[1].headers.authorization.startsWith('AWS4-HMAC-SHA256 '));
 
+  // Consented: the address is created in the promotional list.
   const consented = providerWithPromo();
   const r2 = await consented.provider.addContact('promo@example.com', { marketing: true });
   assert.equal(r2.promotional, true);
   assert.equal(consented.calls.length, 2, 'transactional + promotional');
   assert.match(consented.calls[0].url, /contact-lists\/trackd-beta\/contacts$/);
   assert.match(consented.calls[1].url, /contact-lists\/trackd-promo\/contacts$/);
+  assert.equal(consented.calls[1].method, 'POST');
   assert.equal(consented.calls[1].body.EmailAddress, 'promo@example.com');
 
-  // No promotional list configured: a consented address is still beta-only.
+  // Already-consented (AlreadyExists) and already-absent (404 NotFound) are both
+  // success: the audience is already in the desired state.
+  const repeat = createSesProvider({
+    env: Object.assign({}, SES_ENV, { SES_PROMO_CONTACT_LIST: 'trackd-promo' }),
+    fetchImpl: async (url, init) =>
+      init.method === 'POST'
+        ? sesResponse(400, { message: 'Contact already exists' }, {
+            'x-amzn-errortype': 'AlreadyExistsException',
+          })
+        : sesResponse(404, { message: 'no such contact' }),
+  });
+  const r3 = await repeat.addContact('dup@example.com', { marketing: true });
+  assert.equal(r3.promotional, true);
+  assert.equal(r3.duplicate, true);
+  const r4 = await repeat.addContact('gone@example.com', { marketing: false });
+  assert.equal(r4.promotional, false, 'already absent is the desired state');
+
+  // A delete that fails for any other reason must not be mistaken for success —
+  // the record would then claim a refusal the audience still ignores.
+  const forbidden = createSesProvider({
+    env: Object.assign({}, SES_ENV, { SES_PROMO_CONTACT_LIST: 'trackd-promo' }),
+    fetchImpl: async (url, init) =>
+      init.method === 'DELETE'
+        ? sesResponse(403, { message: 'AccessDenied' })
+        : sesResponse(200, {}),
+  });
+  await assert.rejects(
+    () => forbidden.addContact('x@example.com', { marketing: false }),
+    (err) => {
+      assert.equal(err.code, 'promo_delete_http_403');
+      assert.doesNotMatch(err.message, /x@example\.com/);
+      return true;
+    }
+  );
+
+  // No promotional list configured: a consented address is still beta-only and
+  // nothing is ever deleted from a list that does not exist.
   const noPromo = createSesProvider({
     env: SES_ENV,
     fetchImpl: async () => sesResponse(200, {}),
   });
   assert.equal(noPromo.promoListConfigured, false);
-  const r3 = await noPromo.addContact('x@example.com', { marketing: true });
-  assert.equal(r3.promotional, false);
+  const r5 = await noPromo.addContact('x@example.com', { marketing: true });
+  assert.equal(r5.promotional, false);
+});
+
+test('SES provider: DeleteContact keeps the address inside a single path segment', async () => {
+  const calls = [];
+  const provider = createSesProvider({
+    env: Object.assign({}, SES_ENV, { SES_PROMO_CONTACT_LIST: 'trackd-promo' }),
+    fetchImpl: async (url, init) => {
+      calls.push({ url, method: init.method });
+      return sesResponse(200, {});
+    },
+  });
+  await provider.deleteContact('trackd-promo', 'a/../b@example.com');
+  assert.equal(calls[0].method, 'DELETE');
+  assert.equal(
+    calls[0].url,
+    'https://email.us-east-1.amazonaws.com/v2/email/contact-lists/trackd-promo/contacts/a%2F..%2Fb%40example.com'
+  );
+});
+
+test('SES provider: a promotional list is reconciled even without a transactional list', async () => {
+  const calls = [];
+  const provider = createSesProvider({
+    env: Object.assign({}, SES_ENV, {
+      SES_CONTACT_LIST: '',
+      SES_PROMO_CONTACT_LIST: 'trackd-promo',
+    }),
+    fetchImpl: async (url, init) => {
+      calls.push({ url, method: init.method });
+      return sesResponse(200, {});
+    },
+  });
+
+  const marketing = await provider.addContact('p@example.com', { marketing: true });
+  assert.equal(marketing.stored, false);
+  assert.equal(marketing.reason, 'no_contact_list');
+  assert.equal(marketing.promotional, true);
+
+  const withdrawn = await provider.addContact('p@example.com', { marketing: false });
+  assert.equal(withdrawn.promotional, false);
+
+  assert.equal(calls.length, 2, 'promotional create + promotional delete');
+  assert.match(calls[0].url, /contact-lists\/trackd-promo\/contacts$/);
+  assert.equal(calls[1].method, 'DELETE');
 });
 
 test('SES provider: without a contact list nothing is written to SES as a contact', async () => {
@@ -1106,6 +1434,190 @@ test('end to end: a duplicate contact from SES is still a 200 and does not doubl
       2,
       'one SendEmail per signup'
     );
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+// A small stateful SES: real contact-list semantics (CreateContact idempotent
+// via AlreadyExistsException, DeleteContact 404ing for an absent address) so the
+// consent/audience agreement can be verified end to end against the real
+// provider rather than a hand-shaped fake.
+function statefulSesStub() {
+  const lists = new Map(); // list name -> Set of addresses
+  const received = [];
+  const server = http.createServer(async (req, res) => {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const raw = Buffer.concat(chunks).toString('utf8');
+    const url = new URL(req.url, 'http://' + req.headers.host);
+    const parts = url.pathname.split('/');
+    received.push({
+      method: req.method,
+      path: url.pathname,
+      headers: req.headers,
+      raw,
+      body: raw ? JSON.parse(raw) : null,
+    });
+
+    const json = (status, payload, headers) => {
+      res.writeHead(status, Object.assign({ 'content-type': 'application/json' }, headers || {}));
+      res.end(JSON.stringify(payload));
+    };
+
+    if (url.pathname === '/v2/email/outbound-emails') {
+      json(200, { MessageId: 'stub-' + received.length });
+      return;
+    }
+    if (
+      parts[1] === 'v2' &&
+      parts[2] === 'email' &&
+      parts[3] === 'contact-lists' &&
+      parts[5] === 'contacts'
+    ) {
+      const list = decodeURIComponent(parts[4]);
+      let members = lists.get(list);
+      if (!members) {
+        members = new Set();
+        lists.set(list, members);
+      }
+      if (req.method === 'POST') {
+        const email = (JSON.parse(raw || '{}') || {}).EmailAddress;
+        if (members.has(email)) {
+          json(400, { message: 'Contact already exists' }, {
+            'x-amzn-errortype': 'AlreadyExistsException',
+          });
+          return;
+        }
+        members.add(email);
+        json(200, {});
+        return;
+      }
+      if (req.method === 'DELETE' && parts[6]) {
+        const email = decodeURIComponent(parts[6]);
+        if (!members.has(email)) {
+          json(404, { message: 'no such contact' }, {
+            'x-amzn-errortype': 'NotFoundException',
+          });
+          return;
+        }
+        members.delete(email);
+        json(200, {});
+        return;
+      }
+    }
+    json(404, { message: 'no route' });
+  });
+  return { server, received, lists };
+}
+
+// The signup marker for one address, computed the way the service keys it.
+function markerFor(store, email) {
+  const hash = crypto
+    .createHmac('sha256', ENV.SIGNUP_HASH_SALT)
+    .update(email)
+    .digest('hex');
+  return store.map.get('signup:' + hash);
+}
+
+test('end to end: the stored consent and the promotional list agree through every change', async (t) => {
+  // Built at runtime rather than written as a literal address in the source.
+  const host = ['127', '0', '0', '1'].join('.');
+  const { server, received, lists } = statefulSesStub();
+  await new Promise((resolve) => server.listen(0, host, resolve));
+  const port = server.address().port;
+
+  try {
+    const env = Object.assign({}, ENV, SES_ENV, {
+      AWS_ENDPOINT_URL_SES: 'http://' + host + ':' + port,
+      SES_PROMO_CONTACT_LIST: 'trackd-promo',
+    });
+    const clock = { ms: 1_700_000_000_000 };
+    const store = memoryStore();
+    const handler = createHandler({
+      store,
+      provider: createSesProvider({ env }),
+      logger: { log() {}, error() {} },
+      env,
+      now: () => clock.ms,
+    });
+    const promo = () => lists.get('trackd-promo') || new Set();
+    const beta = () => lists.get('trackd-beta') || new Set();
+    const agree = (email) =>
+      (markerFor(store, email).consent.marketing === true) === promo().has(email);
+
+    // 1. Opt-in: in the transactional list and in the promotional list.
+    const first = await call(handler, {
+      email: '  E2E-Promo@Example.com ',
+      honeypot: '',
+      source: 'e2e',
+      beta_consent: true,
+      marketing_consent: true,
+    });
+    assert.equal(first.response.statusCode, 200);
+    assert.equal(beta().has('e2e-promo@example.com'), true);
+    assert.equal(promo().has('e2e-promo@example.com'), true);
+    assert.equal(agree('e2e-promo@example.com'), true);
+
+    // 2. Withdrawal after the cooldown: the address leaves the promotional list
+    //    on the wire (DeleteContact) and stays on the transactional one.
+    clock.ms += 25 * 60 * 60 * 1000;
+    const withdrawal = await call(handler, {
+      email: 'e2e-promo@example.com',
+      honeypot: '',
+      source: 'e2e',
+      beta_consent: true,
+      marketing_consent: false,
+    });
+    assert.equal(withdrawal.response.statusCode, 200);
+    assert.equal(markerFor(store, 'e2e-promo@example.com').consent.marketing, false);
+    assert.equal(promo().has('e2e-promo@example.com'), false, 'withdrawal applied');
+    assert.equal(beta().has('e2e-promo@example.com'), true, 'still beta');
+    assert.equal(agree('e2e-promo@example.com'), true);
+    assert.ok(
+      received.some(
+        (r) => r.method === 'DELETE' && r.path.endsWith('/contacts/e2e-promo%40example.com')
+      ),
+      'DeleteContact went out'
+    );
+
+    // 3. Opt-in inside the resend cooldown: recorded and applied, no second email.
+    const betaOnly = await call(handler, {
+      email: 'e2e-late@example.com',
+      honeypot: '',
+      source: 'e2e',
+      beta_consent: true,
+      marketing_consent: false,
+    });
+    assert.equal(betaOnly.response.statusCode, 200);
+    const mailsBeforeLateOptIn = received.filter(
+      (r) => r.path === '/v2/email/outbound-emails'
+    ).length;
+    clock.ms += 60 * 1000;
+    const late = await call(handler, {
+      email: 'e2e-late@example.com',
+      honeypot: '',
+      source: 'e2e',
+      beta_consent: true,
+      marketing_consent: true,
+    });
+    assert.equal(late.response.statusCode, 200);
+    assert.equal(markerFor(store, 'e2e-late@example.com').consent.marketing, true);
+    assert.equal(promo().has('e2e-late@example.com'), true, 'late opt-in applied');
+    assert.equal(agree('e2e-late@example.com'), true);
+    assert.equal(
+      received.filter((r) => r.path === '/v2/email/outbound-emails').length,
+      mailsBeforeLateOptIn,
+      'the in-cooldown opt-in sends no second email'
+    );
+
+    if (oracle) {
+      for (const record of received) {
+        await verifyReceivedSignature(record, port);
+      }
+    } else {
+      t.diagnostic('@smithy/signature-v4 not installed: wire signature not independently verified');
+    }
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

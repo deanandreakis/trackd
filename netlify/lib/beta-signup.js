@@ -23,9 +23,14 @@
 // - `marketing_consent` is optional and true only on an explicit boolean true.
 //   It is never derived from any other field.
 // - The handler records the consent decision (consent.beta / consent.marketing)
-//   with server-clock timestamps in the stored marker, and only a consented
-//   address is added to a promotional audience. These two timestamps are the
-//   evidence trail for GDPR Art. 7(1); they never come from client input.
+//   with server-clock timestamps in the stored marker, and reconciles the
+//   provider's audiences to it in both directions (no marketing consent means
+//   the address is *not* in the promotional audience, including after a
+//   withdrawal). These two timestamps are the evidence trail for GDPR
+//   Art. 7(1); they never come from client input.
+// - Consent evidence is written only after the audience has been reconciled, so
+//   a failed reconcile is reported as a 500 rather than as an accepted request
+//   whose recorded choice the audience ignores.
 //
 // Design notes:
 // - The raw email is never logged. Logs carry a salted HMAC prefix of the
@@ -273,7 +278,8 @@ function createHandler(options) {
     ) {
       // Already stored and already emailed recently. Idempotent success — but a
       // changed consent value is still new evidence and must not be dropped, so
-      // refresh just the consent block before returning.
+      // refresh the consent block and bring the promotional audience to the
+      // state it records before returning.
       try {
         await service.recordConsent(email, { marketing: marketingConsent });
       } catch (err) {
@@ -281,6 +287,10 @@ function createHandler(options) {
           emailHash: emailHash.slice(0, 12),
           code: err && err.code ? err.code : 'store_error',
         });
+        // A withdrawal (or opt-in) that did not reach the audience must not be
+        // reported as success. The retry re-runs the same reconcile, which is
+        // idempotent in both directions.
+        return json(500, { status: 'error', message: MESSAGES.unavailable });
       }
       return json(200, { status: 'ok' });
     }

@@ -51,27 +51,47 @@ function memoryStore(overrides) {
 }
 
 // A stand-in for a provider whose audience is keyed by address (SES contact
-// list): a repeat add is a no-op reported as duplicate, never a second row.
+// list): a repeat add is a no-op reported as duplicate, never a second row. The
+// promotional list mirrors netlify/lib/ses-provider.js: membership is reconciled
+// to the submitted consent in both directions.
 function fakeAudienceProvider(initial) {
-  const state = Object.assign({ failAdd: false, failSend: false }, initial);
+  const state = Object.assign(
+    { failAdd: false, failSend: false, promoListConfigured: true },
+    initial
+  );
   const contacts = new Set();
-  const calls = []; // [{ email, marketing }]
+  const promo = new Set();
+  const calls = []; // [{ email, marketing, promotional, removed }]
   const sends = [];
   return {
     state,
     contacts,
+    promo,
     calls,
     sends,
     ready: true,
+    get promoListConfigured() {
+      return Boolean(state.promoListConfigured);
+    },
     async addContact(email, options) {
       const marketing = Boolean(options && options.marketing === true);
-      calls.push({ email, marketing });
       if (state.failAdd) {
         throw Object.assign(new Error('contact list down'), { code: 'contact_http_500' });
       }
       const duplicate = contacts.has(email);
       contacts.add(email);
-      return { stored: true, duplicate, contactId: email, marketing, promotional: marketing };
+      let promotional = false;
+      let removed = false;
+      if (state.promoListConfigured) {
+        if (marketing) {
+          promo.add(email);
+          promotional = true;
+        } else {
+          removed = promo.delete(email);
+        }
+      }
+      calls.push({ email, marketing, promotional, removed });
+      return { stored: true, duplicate, contactId: email, marketing, promotional };
     },
     async sendConfirmation(email) {
       if (state.failSend) {
@@ -168,6 +188,90 @@ test('recordConsent refreshes only the consent block and is a no-op when unchang
 
   // No marker: nothing to do.
   assert.equal(await svc.recordConsent('missing@example.com', { marketing: true }), null);
+});
+
+test('storeSignup reconciles the promotional audience with the consent it records', async () => {
+  const { svc, store, provider } = service();
+
+  await svc.storeSignup('flip@example.com', 'hero', { marketing: true });
+  assert.equal(provider.promo.has('flip@example.com'), true);
+  assert.equal(store.map.size >= 1, true);
+
+  // The same address comes back without marketing consent: the audience must
+  // follow the record, not keep the address because it was added once.
+  const withdrawn = await svc.storeSignup('flip@example.com', 'hero', {
+    marketing: false,
+  });
+  assert.equal(withdrawn.marketing, false);
+  assert.equal(withdrawn.promotional, false);
+  assert.equal(provider.promo.has('flip@example.com'), false, 'withdrawal applied');
+  assert.equal(provider.contacts.has('flip@example.com'), true, 'still transactional');
+
+  const key = [...store.map.keys()].find((k) => k.startsWith('signup:'));
+  const record = store.map.get(key);
+  assert.equal(record.consent.marketing, false);
+  assert.equal(
+    record.consent.marketing === true,
+    provider.promo.has('flip@example.com'),
+    'record and audience agree'
+  );
+});
+
+test('recordConsent applies a changed choice to the promotional audience', async () => {
+  const { svc, provider } = service();
+  await svc.storeSignup('delta@example.com', 'hero', { marketing: false });
+  assert.equal(provider.promo.has('delta@example.com'), false);
+
+  // Opt-in on the cooldown path: recorded *and* applied.
+  const optedIn = await svc.recordConsent('delta@example.com', { marketing: true });
+  assert.equal(optedIn.consent.marketing, true);
+  assert.equal(provider.promo.has('delta@example.com'), true, 'opt-in reached the list');
+
+  // Withdrawal on the cooldown path: recorded *and* applied.
+  const withdrawn = await svc.recordConsent('delta@example.com', { marketing: false });
+  assert.equal(withdrawn.consent.marketing, false);
+  assert.equal(withdrawn.consent.marketingAt, null);
+  assert.equal(provider.promo.has('delta@example.com'), false, 'withdrawal left the list');
+});
+
+test('recordConsent surfaces a provider failure instead of recording an unapplied change', async () => {
+  const { svc, provider } = service();
+  await svc.storeSignup('stuck@example.com', 'hero', { marketing: true });
+  assert.equal(provider.promo.has('stuck@example.com'), true);
+
+  provider.state.failAdd = true;
+  await assert.rejects(
+    () => svc.recordConsent('stuck@example.com', { marketing: false }),
+    (err) => {
+      assert.ok(err instanceof ProviderError);
+      assert.doesNotMatch(err.message, /stuck@example\.com/);
+      return true;
+    }
+  );
+
+  // Nothing was recorded: the marker still says what the audience still is.
+  const record = await svc.getSignup('stuck@example.com');
+  assert.equal(record.consent.marketing, true);
+  assert.equal(provider.promo.has('stuck@example.com'), true);
+});
+
+test('recordConsent is a pure read when nothing changed and no promotional list exists', async () => {
+  const bare = fakeAudienceProvider({ promoListConfigured: false });
+  const { svc, provider } = service({ provider: bare });
+  await svc.storeSignup('quiet@example.com', 'hero', { marketing: false });
+  const before = provider.calls.length;
+
+  const same = await svc.recordConsent('quiet@example.com', { marketing: false });
+  assert.equal(same.consent.marketing, false);
+  assert.equal(provider.calls.length, before, 'no provider call');
+
+  // With a promotional list configured, even an unchanged value re-asserts the
+  // membership, so a drifted audience converges on the next accepted request.
+  const configured = service();
+  await configured.svc.storeSignup('drift@example.com', 'hero', { marketing: false });
+  const configuredBefore = configured.provider.calls.length;
+  await configured.svc.recordConsent('drift@example.com', { marketing: false });
+  assert.equal(configured.provider.calls.length, configuredBefore + 1, 're-asserted');
 });
 
 test('sendConfirmation delivers a real message with the install URL and numbered steps', async () => {

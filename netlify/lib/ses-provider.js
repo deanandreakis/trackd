@@ -7,14 +7,25 @@
 // bundle stays small and has no extra transitive dependencies:
 //
 //   addContact(email, opts) -> POST /v2/email/contact-lists/{list}/contacts
-//                              creates the address in the transactional
-//                              (beta) contact list. When opts.marketing === true
-//                              and a promotional list is configured
-//                              (SES_PROMO_CONTACT_LIST), the address is also
-//                              added to that promotional list. Only an explicit
-//                              marketing consent reaches a promotional audience;
-//                              a beta-only contact stays on the transactional
-//                              list alone.
+//                              reconciles the address's list membership with the
+//                              consent the request carried. It is idempotent in
+//                              both directions:
+//                                * the address is created on the transactional
+//                                  (beta) contact list, which every signup joins
+//                                  and which is never treated as promotional;
+//                                * the promotional audience
+//                                  (SES_PROMO_CONTACT_LIST) is brought to the
+//                                  state the consent says — present when
+//                                  opts.marketing === true (CreateContact) and
+//                                  ABSENT otherwise (DeleteContact). Desired
+//                                  state, not append-only: a visitor who
+//                                  withdraws marketing consent must leave the
+//                                  promotional list, or the list is not the
+//                                  consent gate it is documented to be.
+//   deleteContact(list, email) -> DELETE
+//                              /v2/email/contact-lists/{list}/contacts/{email}
+//                              removes an address from a contact list, so a
+//                              withdrawal can actually reach the audience.
 //   sendConfirmation(email) -> POST /v2/email/outbound-emails
 //                              sends the install-instructions email
 //
@@ -37,20 +48,34 @@
 //                          Netlify Blobs instead, but there is no SES
 //                          console/CSV list. Set it in production.
 //   SES_PROMO_CONTACT_LIST optional — a second SES contact list that is the
-//                          promotional audience. Only contacts whose request
-//                          carried marketing_consent: true are added to it, so
-//                          list membership itself is the consent gate and a
-//                          beta-only contact can never be mailed marketing.
-//                          When unset there is no promotional audience at all,
-//                          which is the safe default.
+//                          promotional audience. Its membership is reconciled
+//                          with the submitted consent on every accepted
+//                          request: an address whose request carried
+//                          marketing_consent: true is created in it, an address
+//                          whose request did not is deleted from it. The list
+//                          itself is therefore the consent gate — a beta-only
+//                          contact can never be in it, and a contact that
+//                          withdraws leaves it (GDPR Art. 7(3)) — so every
+//                          promotional send must target this list and nothing
+//                          else. When unset there is no promotional audience at
+//                          all, which is the safe default.
 //   AWS_ENDPOINT_URL_SES   optional — full endpoint base URL, e.g.
 //                          https://email.eu-west-1.amazonaws.com. Falls back to
 //                          AWS_ENDPOINT_URL, then to email.<region>.amazonaws.com.
 //                          This is the standard AWS SDK override name; the tests
 //                          use it to point the provider at a local SES stub.
 //
-// Required IAM permissions: ses:SendEmail and, when SES_CONTACT_LIST is set,
-// ses:CreateContact. Scope both to the sending identity and the contact list.
+// Required IAM permissions:
+//   ses:SendEmail       on the sending identity
+//   ses:CreateContact   on the contact list, and on the promotional list when
+//                       SES_PROMO_CONTACT_LIST is set
+//   ses:DeleteContact   on the promotional list when SES_PROMO_CONTACT_LIST is
+//                       set — the promotional audience is reconciled to the
+//                       submitted consent, which means removing an address that
+//                       did not consent or has withdrawn it. Without this
+//                       permission every signup that is not a marketing opt-in
+//                       fails (the request is refused rather than reported as
+//                       accepted while the address stays in the audience).
 //
 // Error handling: failures throw ProviderError with a short machine code and
 // the HTTP status only. The raw email is never included in the error message or
@@ -188,62 +213,110 @@ function createSesProvider(options) {
     );
   }
 
+  // DeleteContact (SES v2): DELETE .../contacts/{email}. The address is a URI
+  // path parameter, so it goes through pathSegments (each segment encoded on
+  // its own, never re-interpreted as path structure) and no body is sent. A 404
+  // is AWS's NotFoundException: the address was not in the list, which is the
+  // state we wanted anyway.
+  async function deleteContact(list, email) {
+    return request(
+      'DELETE',
+      ['v2', 'email', 'contact-lists', list, 'contacts', email],
+      {},
+      null
+    );
+  }
+
+  // SES reports a missing resource either as a bare 404 or as a typed exception
+  // in x-amzn-errortype / __type. Both are treated as "already absent".
+  function notFound(result) {
+    return (
+      result.status === 404 ||
+      result.type === 'NotFoundException' ||
+      result.type === 'ResourceNotFoundException'
+    );
+  }
+
   return {
     ready: Boolean(accessKeyId && secretAccessKey && from),
     contactListConfigured: Boolean(contactList),
     promoListConfigured: Boolean(promoList),
     createContact,
+    deleteContact,
 
+    // Reconcile the address's list membership with the consent the request
+    // carried. Idempotent in both directions, so a first signup, a repeat, a
+    // withdrawal and a re-opt-in all converge on what the latest accepted
+    // request asked for and the stored record can never disagree with the
+    // audience it is evidence for.
     async addContact(email, options) {
       const marketing = Boolean(options && options.marketing === true);
 
-      if (!contactList) {
-        // No transactional list configured. The core handler stores the address
-        // in Netlify Blobs so the signup is still durable.
-        return {
-          stored: false,
-          reason: 'no_contact_list',
-          marketing,
-          promotional: false,
-        };
-      }
-
-      const result = await createContact(contactList, email);
-
+      // 1. Transactional (beta) list. Written first on purpose: if the
+      //    promotional step below fails, the failure mode is an address that is
+      //    beta-only with no promotional membership (closed), never an address
+      //    in a promotional audience that nothing consented to (open).
+      let stored = false;
       let duplicate = false;
-      if (result.ok) {
-        duplicate = false;
-      } else if (result.type === 'AlreadyExistsException') {
-        // Idempotent: the address is already in the list. Not a second row.
-        duplicate = true;
-      } else {
-        throw new ProviderError('contact_http_' + result.status, result.status);
-      }
-
-      // Promotional audience. The consent gate lives here: an address reaches
-      // the promotional list only when the request carried an explicit
-      // marketing consent. Every beta signup is on the transactional list
-      // above, so "beta-only" can never leak into a marketing send.
-      let promotional = false;
-      if (marketing && promoList) {
-        const promo = await createContact(promoList, email);
-        if (promo.ok || promo.type === 'AlreadyExistsException') {
-          promotional = true;
+      let contactId = null;
+      if (contactList) {
+        const result = await createContact(contactList, email);
+        if (result.ok) {
+          stored = true;
+          contactId = email;
+        } else if (result.type === 'AlreadyExistsException') {
+          // Idempotent: the address is already in the list. Not a second row.
+          stored = true;
+          duplicate = true;
+          contactId = email;
         } else {
-          throw new ProviderError(
-            'promo_contact_http_' + promo.status,
-            promo.status
-          );
+          throw new ProviderError('contact_http_' + result.status, result.status);
         }
       }
 
-      return {
-        stored: true,
+      // 2. Promotional audience. Desired state, not append-only: consent present
+      //    ensures membership, consent absent ensures *absence*, so a withdrawal
+      //    at the second submission actually leaves the audience instead of
+      //    being recorded while the address stays in the list a campaign reads.
+      //    Membership itself is the gate: only a marketing-consented address can
+      //    be in this list, and only a consented address is ever mailed from it.
+      let promotional = false;
+      if (promoList) {
+        if (marketing) {
+          const promo = await createContact(promoList, email);
+          if (promo.ok || promo.type === 'AlreadyExistsException') {
+            promotional = true;
+          } else {
+            throw new ProviderError(
+              'promo_contact_http_' + promo.status,
+              promo.status
+            );
+          }
+        } else {
+          const removal = await deleteContact(promoList, email);
+          if (!removal.ok && !notFound(removal)) {
+            throw new ProviderError(
+              'promo_delete_http_' + removal.status,
+              removal.status
+            );
+          }
+          promotional = false;
+        }
+      }
+
+      const contact = {
+        stored,
         duplicate,
-        contactId: email,
+        contactId,
         marketing,
         promotional,
       };
+      if (!stored) {
+        // No transactional list configured, but the promotional audience (if
+        // configured) was still reconciled above.
+        contact.reason = 'no_contact_list';
+      }
+      return contact;
     },
 
     async sendConfirmation(email) {
