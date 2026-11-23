@@ -6,8 +6,15 @@
 // signature (netlify/lib/aws-sigv4.js) — no AWS SDK, so the Netlify Function
 // bundle stays small and has no extra transitive dependencies:
 //
-//   addContact(email)       -> PUT  /v2/email/contact-lists/{list}/contacts/{email}
-//                              creates the address in a SES contact list (the list)
+//   addContact(email, opts) -> POST /v2/email/contact-lists/{list}/contacts
+//                              creates the address in the transactional
+//                              (beta) contact list. When opts.marketing === true
+//                              and a promotional list is configured
+//                              (SES_PROMO_CONTACT_LIST), the address is also
+//                              added to that promotional list. Only an explicit
+//                              marketing consent reaches a promotional audience;
+//                              a beta-only contact stays on the transactional
+//                              list alone.
 //   sendConfirmation(email) -> POST /v2/email/outbound-emails
 //                              sends the install-instructions email
 //
@@ -22,11 +29,20 @@
 //                          endpoint returns a generic 500 and sends nothing.
 //   SIGNUP_REPLY_TO        optional — reply-to address. Defaults to
 //                          trackd@deanware.com.
-//   SES_CONTACT_LIST       the SES contact list that holds the beta list.
+//   SES_CONTACT_LIST       the SES contact list that holds the beta list. This
+//                          is the transactional audience every beta signup
+//                          joins; it is never treated as promotional.
 //                          Optional at the code level: without it the endpoint
 //                          still sends the email and stores the address in
 //                          Netlify Blobs instead, but there is no SES
 //                          console/CSV list. Set it in production.
+//   SES_PROMO_CONTACT_LIST optional — a second SES contact list that is the
+//                          promotional audience. Only contacts whose request
+//                          carried marketing_consent: true are added to it, so
+//                          list membership itself is the consent gate and a
+//                          beta-only contact can never be mailed marketing.
+//                          When unset there is no promotional audience at all,
+//                          which is the safe default.
 //   AWS_ENDPOINT_URL_SES   optional — full endpoint base URL, e.g.
 //                          https://email.eu-west-1.amazonaws.com. Falls back to
 //                          AWS_ENDPOINT_URL, then to email.<region>.amazonaws.com.
@@ -77,6 +93,7 @@ function createSesProvider(options) {
   const from = env.SIGNUP_FROM_EMAIL;
   const replyTo = env.SIGNUP_REPLY_TO || 'trackd@deanware.com';
   const contactList = env.SES_CONTACT_LIST;
+  const promoList = env.SES_PROMO_CONTACT_LIST;
   const endpoint =
     env.AWS_ENDPOINT_URL_SES ||
     env.AWS_ENDPOINT_URL ||
@@ -158,34 +175,75 @@ function createSesProvider(options) {
     };
   }
 
+  // CreateContact (SES v2): POST /v2/email/contact-lists/{list}/contacts with
+  // the address in the body. (PUT on .../contacts/{email} is UpdateContact,
+  // which 404s for an address that is not already a contact — never use it to
+  // add one.)
+  async function createContact(list, email) {
+    return request(
+      'POST',
+      ['v2', 'email', 'contact-lists', list, 'contacts'],
+      {},
+      { EmailAddress: email, UnsubscribeAll: false }
+    );
+  }
+
   return {
     ready: Boolean(accessKeyId && secretAccessKey && from),
     contactListConfigured: Boolean(contactList),
+    promoListConfigured: Boolean(promoList),
+    createContact,
 
-    async addContact(email) {
+    async addContact(email, options) {
+      const marketing = Boolean(options && options.marketing === true);
+
       if (!contactList) {
-        // No contact list configured. The core handler stores the address in
-        // Netlify Blobs so the signup is still durable.
-        return { stored: false, reason: 'no_contact_list' };
+        // No transactional list configured. The core handler stores the address
+        // in Netlify Blobs so the signup is still durable.
+        return {
+          stored: false,
+          reason: 'no_contact_list',
+          marketing,
+          promotional: false,
+        };
       }
 
-      const result = await request(
-        'PUT',
-        ['v2', 'email', 'contact-lists', contactList, 'contacts', email],
-        {},
-        { UnsubscribeAll: false }
-      );
+      const result = await createContact(contactList, email);
 
+      let duplicate = false;
       if (result.ok) {
-        return { stored: true, contactId: email };
-      }
-
-      if (result.type === 'AlreadyExistsException') {
+        duplicate = false;
+      } else if (result.type === 'AlreadyExistsException') {
         // Idempotent: the address is already in the list. Not a second row.
-        return { stored: true, duplicate: true, contactId: email };
+        duplicate = true;
+      } else {
+        throw new ProviderError('contact_http_' + result.status, result.status);
       }
 
-      throw new ProviderError('contact_http_' + result.status, result.status);
+      // Promotional audience. The consent gate lives here: an address reaches
+      // the promotional list only when the request carried an explicit
+      // marketing consent. Every beta signup is on the transactional list
+      // above, so "beta-only" can never leak into a marketing send.
+      let promotional = false;
+      if (marketing && promoList) {
+        const promo = await createContact(promoList, email);
+        if (promo.ok || promo.type === 'AlreadyExistsException') {
+          promotional = true;
+        } else {
+          throw new ProviderError(
+            'promo_contact_http_' + promo.status,
+            promo.status
+          );
+        }
+      }
+
+      return {
+        stored: true,
+        duplicate,
+        contactId: email,
+        marketing,
+        promotional,
+      };
     },
 
     async sendConfirmation(email) {

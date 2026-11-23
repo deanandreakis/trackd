@@ -7,7 +7,8 @@
 //                  to /.netlify/functions/beta-signup with status 200 (the URL
 //                  the browser sees stays /api/beta-signup).
 //
-// Request:  JSON { "email": string, "honeypot": string, "source": string }
+// Request:  JSON { "email": string, "honeypot": string, "source": string,
+//                  "beta_consent": boolean, "marketing_consent": boolean }
 // Success:  200 { "status": "ok" }
 // Failure:  400 { "status": "error", "message": string }   (validation / spam)
 //           500 { "status": "error", "message": string }   (provider/storage)
@@ -32,6 +33,8 @@
 //   AWS_REGION             SES region, e.g. us-east-1
 //   SIGNUP_FROM_EMAIL      SES-verified sender, e.g. "Trackd <hello@deanware.com>"
 //   SES_CONTACT_LIST       contact list that holds the beta list (recommended)
+//   SES_PROMO_CONTACT_LIST optional promotional list; only contacts with an
+//                          explicit marketing_consent are added to it
 //   SIGNUP_REPLY_TO        optional, defaults to trackd@deanware.com
 //   AWS_SESSION_TOKEN      optional, only for temporary credentials
 //   AWS_ENDPOINT_URL_SES   optional endpoint override (tests/stubs)

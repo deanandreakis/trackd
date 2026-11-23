@@ -16,19 +16,28 @@ where the list lives, and what has to be switched on.
 | Email service | **AWS SES** (SES v2 REST API, SigV4-signed in-repo, no AWS SDK) |
 | Where the list lives | **AWS SES contact list** named by `SES_CONTACT_LIST` (e.g. `trackd-beta`); Netlify Blobs store `beta-signups` is the operational/fallback store |
 | Code | `netlify/functions/beta-signup.js` (adapter) + `netlify/lib/*` (core, signup service, SES transport, SigV4 signer) |
-| Tests | `npm test` — 35 tests, including a local SES stub with every on-the-wire signature re-checked against the official AWS signer |
+| Tests | `npm test` — 48 tests, including a local SES stub with every on-the-wire signature re-checked against the official AWS signer |
 
-## Endpoint (frozen contract)
+## Endpoint (frozen contract v2)
 
 ```
 POST /api/beta-signup
 Content-Type: application/json
 
-request   { "email": string, "honeypot": string, "source": string }
+request   { "email": string, "honeypot": string, "source": string,
+            "beta_consent": boolean, "marketing_consent": boolean }
 success   200 { "status": "ok" }
 error     400 { "status": "error", "message": string }   // validation, spam, throttle
 error     500 { "status": "error", "message": string }   // provider/storage outage
 ```
+
+| Field | Type | Required | Server behaviour |
+| --- | --- | --- | --- |
+| `email` | string | yes | Trimmed and lowercased; structural garbage is a `400`. |
+| `honeypot` | string | yes | Must be empty. A non-empty value is the bot signal — see the spam section. |
+| `source` | string | no | Attribution label; control characters stripped; default `unknown`. |
+| `beta_consent` | boolean | **yes** | Must be exactly `true`. Every other value (missing, `false`, `"true"`, `1`, `null`) is rejected with the same `400` the honeypot uses, so the response never reveals which check failed. Stored as `consent.beta` with a server-clock `consent.betaAt`. |
+| `marketing_consent` | boolean | no | Marketing opt-in. `true` only on an explicit boolean `true`; absent, `false`, `"true"` and `1` all mean **no marketing consent**. Stored as `consent.marketing` with `consent.marketingAt` (server clock) when true, `null` otherwise. |
 
 - **Public URL:** `https://trackd.deanware.com/api/beta-signup`
 - **Implementation:** `netlify/functions/beta-signup.js`
@@ -46,19 +55,63 @@ a reusable persistence + confirmation-email service
 covered by `tests/beta-signup.test.js` and `tests/signup-service.test.js`; run
 `npm test`.
 
-> **Not yet implemented — consent evidence.** The live form also sends
-> `beta_consent` / `marketing_consent`, but this endpoint does not read or store
-> them yet; they are ignored. Persisting them (and gating any promotional send on
-> them) is card **t_30b0eae6**. Until that lands, the request body above is the
-> full contract the server acts on.
+> **Consent evidence is captured (contract v2).** The live form sends
+> `beta_consent` and `marketing_consent`; the endpoint validates `beta_consent`
+> (exactly `true`) and records both values with server-clock timestamps in the
+> stored marker. See the *Consent* section below and `docs/signup-consent-copy.md`
+> for the wording the form presents.
+
+## Consent (contract v2)
+
+The lawful basis for the beta signup and the install email is **consent**
+(GDPR Art. 6(1)(a)); a controller must be able to *demonstrate* it
+(Art. 7(1)). The endpoint therefore turns the two checkboxes the form already
+renders into durable evidence:
+
+- `beta_consent` is required and must be exactly boolean `true`. Anything else
+  gets the generic `400 {"status":"error"}` — the same body as a filled
+  honeypot — so the response does not disclose which check failed.
+- `marketing_consent` is optional and is true only on an explicit boolean
+  `true`. It is never derived from another field, and an unticked box leaves a
+  recorded refusal rather than a silent omission.
+
+The stored marker (Netlify Blobs `beta-signups`, keyed by the address HMAC)
+gains a `consent` block whose two timestamps are the evidence trail:
+
+```js
+consent: {
+  beta: true,           // always true here: the handler rejects false first
+  betaAt: <epoch ms>,   // server clock at capture
+  marketing: <boolean>, // the explicit opt-in, if any
+  marketingAt: <epoch ms | null>
+}
+```
+
+Both timestamps come from the server clock, never from client input. A repeat
+signup keeps the earliest recorded times, so the original consent act is
+preserved rather than being silently re-dated. On a repeat inside the
+resend-cooldown window the confirmation is not re-sent, but a *changed* marketing
+choice is still written to the marker, so a later opt-in or opt-out is never
+dropped.
+
+**Audience rule.** Every beta signup joins the transactional SES contact list
+(`SES_CONTACT_LIST`). Only an address whose request carried
+`marketing_consent: true` is additionally added to the promotional list
+(`SES_PROMO_CONTACT_LIST`), so list membership *is* the consent gate: a
+beta-only contact can never reach a promotional send. When
+`SES_PROMO_CONTACT_LIST` is unset there is no promotional audience at all,
+which is the safe default. The confirmation email is transactional and needs no
+marketing consent.
 
 ## Flow
 
 1. Visitor submits the hero form (`index.html`, `#signup-form`).
 2. The inline script validates the address and the required consent tick, then
    POSTs JSON to `/api/beta-signup`.
-3. The function validates the address, checks the honeypot, applies the per-IP
-   throttle, adds the address to the SES contact list (the list), and sends the
+3. The function validates the honeypot, the required `beta_consent: true`, and
+   the address, applies the per-IP throttle, records the consent evidence, adds
+   the address to the transactional SES contact list (and, only when
+   `marketing_consent` is true, the promotional list), and sends the
    confirmation email through SES.
 4. The page shows `Check your inbox for install instructions.` on success, or an
    inline error on failure. The form stays usable for a retry.
@@ -67,10 +120,12 @@ covered by `tests/beta-signup.test.js` and `tests/signup-service.test.js`; run
 
 | Concern | Where |
 | --- | --- |
-| **The list (authoritative)** | **AWS SES contact list** named by `SES_CONTACT_LIST`. SES console → **Configuration → Contact lists → [list]**. Also via `aws sesv2 list-contacts --contact-list-name trackd-beta` or `scripts/export-beta-signups.mjs`. |
+| **The list (authoritative, transactional)** | **AWS SES contact list** named by `SES_CONTACT_LIST`. Every beta signup joins it. SES console → **Configuration → Contact lists → [list]**. Also via `aws sesv2 list-contacts --contact-list-name trackd-beta` or `scripts/export-beta-signups.mjs`. |
+| **Promotional audience (optional)** | **AWS SES contact list** named by `SES_PROMO_CONTACT_LIST`. Only contacts whose request carried `marketing_consent: true` are added. When unset, there is no promotional audience. |
+| **Consent evidence** | The `consent` block in the Blobs signup marker (below): `beta`/`betaAt` and `marketing`/`marketingAt`, both timestamps from the server clock. This is the demonstrable-consent record (GDPR Art. 7(1)). |
 | **Operational store** | **Netlify Blobs**, store name `beta-signups` (override with `SIGNUP_BLOBS_STORE`). Holds rate-limit slot keys and a signup marker keyed by an HMAC of the address. It does **not** hold a second copy of the address when `SES_CONTACT_LIST` is set. |
 | **Fallback store** | If `SES_CONTACT_LIST` is not set, the Blobs record also stores the raw address so the signup is still durable. This is a fallback, not the intended production setup — without a contact list there is no SES UI/CSV list. |
-| **Confirmation email** | AWS SES v2, `POST https://email.<region>.amazonaws.com/v2/email/outbound-emails`, sent synchronously in the request path. |
+| **Confirmation email** | AWS SES v2, `POST https://email.<region>.amazonaws.com/v2/email/outbound-emails`, sent synchronously in the request path. Transactional: it needs no marketing consent. |
 
 The address is written to the contact list **before** the email is sent. If the
 send fails the request returns 500; the address remains in the list, and a retry
@@ -81,9 +136,12 @@ finds it already present (no duplicate row) and retries the send.
 The endpoint needs exactly two things from an email provider: send one
 transactional message, and hold an address list. AWS SES does both, and the AWS
 account was already available — no new vendor, no new DPA, no new bill. The
-transport is behind `netlify/lib/ses-provider.js`'s three-method interface
-(`ready`, `addContact`, `sendConfirmation`), so swapping providers later means
-writing one file and changing one `require` in the Netlify adapter.
+The transport is behind `netlify/lib/ses-provider.js`'s interface
+(`ready`, `addContact(email, { marketing })`, `sendConfirmation`), so swapping
+providers later means writing one file and changing one `require` in the Netlify
+adapter. `addContact` is SES v2 `CreateContact` (`POST
+/v2/email/contact-lists/{list}/contacts`, address in the body); only when
+`marketing` is true is the address also created in `SES_PROMO_CONTACT_LIST`.
 
 ### Reusable module — `netlify/lib/signup-service.js`
 
@@ -94,7 +152,7 @@ and anything else, never talks to SES or Blobs directly:
 const { createSignupService } = require('./signup-service');
 const svc = createSignupService({ store, provider, logger, env, now });
 
-await svc.storeSignup(email, source);      // idempotent durable upsert
+await svc.storeSignup(email, source, { marketing: false }); // idempotent upsert
 await svc.sendConfirmation(email);         // send the install email
 ```
 
@@ -104,7 +162,7 @@ await svc.sendConfirmation(email);         // send the install email
 | `normalizeEmail(v)` / `normalizeSource(v)` | trim/lowercase; reject structural garbage |
 | `hash(v)` / `emailHash(email)` / `signupKey(email)` | salted HMAC meant for keys and logs (never the raw address) |
 | `getSignup(email)` | read the durable marker, or `null` |
-| `storeSignup(email, source)` | idempotent upsert into the audience **and** the keyed marker; returns `{ emailHash, duplicate, stored, audience, contactId, createdAt, confirmationSentAt }` |
+| `storeSignup(email, source, consent)` | idempotent upsert into the audience **and** the keyed marker; `consent` is `{ marketing: boolean }`; returns `{ emailHash, duplicate, stored, audience, contactId, marketing, promotional, createdAt, confirmationSentAt }` |
 | `sendConfirmation(email)` | send the confirmation; returns `{ id }` |
 | `markConfirmationSent(email, meta)` | record the send time / delivery id |
 
@@ -193,12 +251,15 @@ containing `/` or `..` can never be re-interpreted as path structure.
    production access (SES console → Account dashboard → Request production
    access) before opening the signup to the public, or confirmations to real
    visitors will be rejected.
-3. **Create a contact list** in SES (e.g. `trackd-beta`). This is the list.
+3. **Create a contact list** in SES (e.g. `trackd-beta`). This is the
+   transactional list. Optionally create a second list (e.g. `trackd-promo`)
+   for the promotional audience — only marketing-consented addresses land there.
 4. **Create an IAM user** with a programmatic access key, and the minimum
    permissions:
    - `ses:SendEmail` on the sending identity
    - `ses:CreateContact` on the contact list (only needed when
-     `SES_CONTACT_LIST` is set)
+     `SES_CONTACT_LIST` is set; scope it to the promotional list too when
+     `SES_PROMO_CONTACT_LIST` is set)
 
    Nothing else. Do not use root credentials. Prefer an IAM policy scoped by
    resource ARN over a wildcard.
@@ -208,6 +269,9 @@ containing `/` or `..` can never be re-interpreted as path structure.
    - `AWS_REGION` — the SES region, e.g. `us-east-1` (required)
    - `SIGNUP_FROM_EMAIL` — the verified sender, e.g. `Trackd <hello@deanware.com>` (required)
    - `SES_CONTACT_LIST` — e.g. `trackd-beta` (required for the list)
+   - `SES_PROMO_CONTACT_LIST` — optional; the promotional audience. Only
+     addresses with `marketing_consent: true` are added. Leave unset for no
+     promotional audience.
    - `SIGNUP_REPLY_TO` — optional; defaults to `trackd@deanware.com`
    - `SIGNUP_HASH_SALT` — a long random string (recommended; set once)
    - `AWS_SESSION_TOKEN` — only for temporary credentials
@@ -237,7 +301,7 @@ Local contract tests — no network, no AWS, no Netlify:
 
 ```bash
 npm install   # once, to get the @smithy oracle used by the signature tests
-npm test      # 35 tests
+npm test      # 48 tests
 ```
 
 The suite starts real local HTTP servers that stand in for SES, so the handler,
@@ -247,7 +311,13 @@ actual sockets.
 Against the deployed site:
 
 ```bash
-# Valid address: expect 200 {"status":"ok"} and an email within ~60s.
+# Valid address with the required beta consent: expect 200 {"status":"ok"} and
+# an email within ~60s.
+curl -sS -i -X POST https://trackd.deanware.com/api/beta-signup \
+  -H 'Content-Type: application/json' \
+  --data '{"email":"you@example.com","honeypot":"","source":"curl-test","beta_consent":true,"marketing_consent":false}'
+
+# Missing beta_consent: expect 400 {"status":"error"} and nothing stored.
 curl -sS -i -X POST https://trackd.deanware.com/api/beta-signup \
   -H 'Content-Type: application/json' \
   --data '{"email":"you@example.com","honeypot":"","source":"curl-test"}'
@@ -255,17 +325,17 @@ curl -sS -i -X POST https://trackd.deanware.com/api/beta-signup \
 # Filled honeypot: expect 400 and nothing stored.
 curl -sS -i -X POST https://trackd.deanware.com/api/beta-signup \
   -H 'Content-Type: application/json' \
-  --data '{"email":"bot@example.com","honeypot":"x","source":"curl-test"}'
+  --data '{"email":"bot@example.com","honeypot":"x","source":"curl-test","beta_consent":true}'
 
 # Invalid address: expect 400 with a clear message.
 curl -sS -i -X POST https://trackd.deanware.com/api/beta-signup \
   -H 'Content-Type: application/json' \
-  --data '{"email":"not-an-email","honeypot":"","source":"curl-test"}'
+  --data '{"email":"not-an-email","honeypot":"","source":"curl-test","beta_consent":true}'
 ```
 
-Then confirm the address appears in the SES contact list and that the
-confirmation email arrived with the Chrome Web Store link and the numbered
-install steps.
+Then confirm the address appears in the SES contact list (and, only when
+`marketing_consent: true`, in the promotional list), and that the confirmation
+email arrived with the Chrome Web Store link and the numbered install steps.
 
 ## Exporting the list
 

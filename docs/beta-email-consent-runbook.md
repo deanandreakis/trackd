@@ -86,12 +86,16 @@ POST. A field Netlify has never seen in the built HTML is silently dropped from 
 so if the form is ever moved to JS-rendered markup, mirror the field names in a static skeleton (the
 repo's documented convention would be `public/__forms.html`).
 
-> **Open item — consent evidence on the new endpoint.** The live page now also POSTs JSON to
-> `POST /api/beta-signup`, whose frozen contract carries only `{email, honeypot, source}`. That endpoint
-> does not read or store the consent values yet, so a signup captured through it has no server-side
-> consent record (GDPR Art. 7(1)). Persisting `beta_consent` / `marketing_consent` and gating any
-> promotional send on them is card **t_30b0eae6**. Until it lands, the Netlify Forms row above remains
-> the only consent evidence.
+> **Resolved — consent evidence on the JSON endpoint (task t_30b0eae6).** The frozen contract is now
+> **v2**: the live page POSTs `{email, honeypot, source, beta_consent, marketing_consent}`, and
+> `netlify/lib/beta-signup.js` validates `beta_consent` (must be exactly boolean `true`, else the same
+> generic `400` as the honeypot) and records both values with **server-clock** timestamps in the stored
+> marker: `consent: { beta, betaAt, marketing, marketingAt }`. That block is the server-side consent
+> record (GDPR Art. 7(1)). Only an address whose request carried `marketing_consent: true` is added to
+> the promotional SES list (`SES_PROMO_CONTACT_LIST`); every signup joins the transactional list
+> (`SES_CONTACT_LIST`). The Netlify Forms row described above is no longer the only consent evidence —
+> but note `POST /api/beta-signup` is still **404 on the live site**, so real traffic is still captured
+> by the Netlify Forms path until the endpoint is deployed.
 
 ---
 

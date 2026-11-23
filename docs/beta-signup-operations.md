@@ -5,9 +5,9 @@ request and response contract, the email service, where the signup list lives,
 the configuration keys, the confirmation email contents, and the rate-limit and
 duplicate semantics.
 
-Everything here is derived from the code on `main` at `78b694b` and was verified
-by running the test suite (`npm test`, 39/39 pass) and by rendering the
-confirmation email through `netlify/lib/confirmation-email.js`.
+Everything here is derived from the code and was verified by running the test
+suite (`npm test`, 48/48 pass) and by rendering the confirmation email through
+`netlify/lib/confirmation-email.js`.
 
 ## 0. Deployment status (verified 23 Nov 2026)
 
@@ -47,7 +47,7 @@ signup, and follow the email send, without opening the source.
 | Email service | AWS SES v2 (REST-JSON API, SigV4-signed in-repo, no AWS SDK) |
 | The list | AWS SES contact list named by `SES_CONTACT_LIST` (for example `trackd-beta`) |
 | Operational store | Netlify Blobs store `beta-signups` (rate-limit slots + hashed signup markers) |
-| Tests | `npm test` (39 tests) |
+| Tests | `npm test` (48 tests) |
 
 ## 1. Endpoint
 
@@ -78,16 +78,8 @@ returns `400`.
 | `email` | string | yes | The address to sign up. Trimmed and lowercased before storage. |
 | `honeypot` | string | yes | Spam trap. Must be an empty string. A non-empty value is treated as a bot. |
 | `source` | string | no | Free-form attribution label. Trimmed to 120 characters. Absent or empty becomes `unknown`. |
-| `beta_consent` | boolean | no | Sent by the frontend (contract v2) as the consent evidence for the install email. **The handler does not read this field today** — see the note below. |
-| `marketing_consent` | boolean | no | Sent by the frontend (contract v2) for the optional marketing opt-in. **Not read by the handler today.** |
-
-> **Known gap (verified 23 Nov 2026).** The live frontend posts all five fields
-> (`{email, honeypot, source, beta_consent, marketing_consent}`), but
-> `netlify/lib/beta-signup.js` reads only `email`, `honeypot`, and `source`
-> (`grep -rn consent netlify/` returns nothing). The consent evidence the privacy
-> policy relies on therefore reaches the server and is discarded. Extra JSON
-> fields are ignored, not rejected, so this does not change any status code.
-> Carrying the booleans through to storage is an open backend/frontend item.
+| `beta_consent` | boolean | yes | Must be exactly `true`. Missing, `false`, `"true"`, `1` and `null` all return the generic `400` (same body as the honeypot). Recorded as `consent.beta` + a server-clock `consent.betaAt`. |
+| `marketing_consent` | boolean | no | Promotional opt-in. `true` only on an explicit boolean `true`; anything else means no marketing consent. Recorded as `consent.marketing` + `consent.marketingAt` (server clock) when true, `null` otherwise. Only a `true` address reaches the promotional audience. |
 
 The body is capped at 2048 bytes. An oversized body is rejected with `400`
 before any storage happens.
@@ -109,7 +101,7 @@ All responses are JSON with `Content-Type: application/json; charset=utf-8`,
 | --- | --- | --- |
 | `200` | `{ "status": "ok" }` | Address stored (or already stored) and confirmation sent (or already sent within the cooldown). |
 | `400` | `{ "status": "error", "message": "Please enter a valid email address." }` | Missing, malformed, or structurally invalid email. |
-| `400` | `{ "status": "error", "message": "Signup could not be processed." }` | Wrong content type, unparseable or non-object JSON, oversized body, or a filled honeypot. |
+| `400` | `{ "status": "error", "message": "Signup could not be processed." }` | Wrong content type, unparseable or non-object JSON, oversized body, a filled honeypot, or a `beta_consent` that is not exactly `true`. |
 | `400` | `{ "status": "error", "message": "Too many signup attempts. Please try again in a few minutes." }` | Per-IP rate limit exceeded. |
 | `405` | `{ "status": "error", "message": "Method not allowed." }` | Method other than `POST` (adds `Allow: POST`). |
 | `500` | `{ "status": "error", "message": "We couldn't save your email just now. Please try again in a minute." }` | Email provider unconfigured, storage write failure, or send failure. |
@@ -122,6 +114,14 @@ address. The messages above are the complete set a client can receive.
 - `honeypot`: checked first, before the email. A non-empty value returns `400`
   with the generic "could not be processed" message and writes nothing to
   storage. The response does not reveal that the honeypot was the reason.
+- `beta_consent`: required. Only the exact boolean `true` passes; every other
+  value returns the same generic "could not be processed" `400` as the honeypot
+  (deliberately indistinguishable), and nothing is stored. The captured value is
+  the lawful-basis evidence the privacy policy relies on (GDPR Art. 6(1)(a)),
+  and the stored `consent.betaAt` is how it is demonstrated (Art. 7(1)).
+- `marketing_consent`: optional, separate purpose. It is never inferred from
+  another field. An unticked box records `consent.marketing: false` (a recorded
+  refusal) rather than being silently dropped.
 - `source`: stored in the operational Blobs marker record only. It is never sent
   to the email provider, so it does not appear in the SES contact list.
 - `email`: a repeat signup is accepted and handled idempotently (see section 7).
@@ -135,18 +135,21 @@ This order matters when you are diagnosing a response:
 3. Body size check, max 2048 bytes (`400`).
 4. JSON parse and object check (`400`).
 5. Honeypot check (`400`, nothing stored).
-6. Email normalization (`400`).
-7. Rate-limit slot claim (`400`). Runs after email validation, so invalid
+6. `beta_consent` check — must be exactly `true` (`400`, nothing stored).
+7. Email normalization (`400`).
+8. Rate-limit slot claim (`400`). Runs after email validation, so invalid
    submissions do not consume a slot.
-8. Provider readiness check (`500` if SES is unconfigured). A slot has already
+9. Provider readiness check (`500` if SES is unconfigured). A slot has already
    been claimed at this point.
-9. Existing-marker read and resend-cooldown check (early `200` if a confirmation
-   was sent recently).
-10. `storeSignup`: the address is added to the SES contact list (or the Blobs
-    fallback when no contact list is configured).
-11. `sendConfirmation`: the confirmation email is sent through SES.
-12. `markConfirmationSent`: the send time and delivery id are recorded.
-13. `200 { "status": "ok" }`.
+10. Existing-marker read and resend-cooldown check (early `200` if a confirmation
+    was sent recently).
+11. `storeSignup`: the address is added to the SES transactional contact list
+    (and the promotional list only when `marketing_consent` is true, or the Blobs
+    fallback when no contact list is configured), and the `consent` block is
+    recorded.
+12. `sendConfirmation`: the confirmation email is sent through SES.
+13. `markConfirmationSent`: the send time and delivery id are recorded.
+14. `200 { "status": "ok" }`.
 
 ## 3. Email service
 
@@ -166,7 +169,8 @@ Two SES operations are used:
 
 | Operation | SES v2 call |
 | --- | --- |
-| Add the address to the list | `PUT /v2/email/contact-lists/{list}/contacts/{email}` |
+| Add the address to the transactional list | `POST /v2/email/contact-lists/{SES_CONTACT_LIST}/contacts` (address in the body) |
+| Add a marketing-consented address to the promotional list | `POST /v2/email/contact-lists/{SES_PROMO_CONTACT_LIST}/contacts` — only when `marketing_consent` is true |
 | Send the confirmation | `POST /v2/email/outbound-emails` |
 
 The address is written to the contact list before the email is sent. If the send
@@ -174,8 +178,9 @@ fails, the request returns `500` and the address stays in the list. A retry find
 it already present (no duplicate row) and re-sends the confirmation.
 
 Required IAM permissions: `ses:SendEmail` on the sending identity, and
-`ses:CreateContact` on the contact list when `SES_CONTACT_LIST` is set. Scope
-both to the specific resource ARN. Do not use root credentials.
+`ses:CreateContact` on the contact list when `SES_CONTACT_LIST` is set (scope it
+to the promotional list too when `SES_PROMO_CONTACT_LIST` is set). Scope both to
+the specific resource ARN. Do not use root credentials.
 
 ## 4. Where the signup list lives and how to inspect it
 
@@ -183,8 +188,9 @@ There are two stores, with different roles.
 
 | Store | Role | Contents |
 | --- | --- | --- |
-| AWS SES contact list named by `SES_CONTACT_LIST` (for example `trackd-beta`) | Authoritative signup list | One contact per address. This is the list you export or read. |
-| Netlify Blobs store `beta-signups` (`SIGNUP_BLOBS_STORE`) | Operational state | Rate-limit slot keys (`rl:<ipHash>:<bucket>:<slot>`) and one signup marker per address (`signup:<HMAC>`). |
+| AWS SES contact list named by `SES_CONTACT_LIST` (for example `trackd-beta`) | Authoritative transactional list | One contact per address. This is the list you export or read. |
+| AWS SES contact list named by `SES_PROMO_CONTACT_LIST` (optional) | Promotional audience | Only addresses whose request carried `marketing_consent: true`. Absent when unset. |
+| Netlify Blobs store `beta-signups` (`SIGNUP_BLOBS_STORE`) | Operational state + consent evidence | Rate-limit slot keys (`rl:<ipHash>:<bucket>:<slot>`) and one signup marker per address (`signup:<HMAC>`), including the `consent` block. |
 
 When `SES_CONTACT_LIST` is set, the Blobs marker holds no raw address. The SES
 contact list is the only place the raw address is persisted. If
@@ -193,7 +199,10 @@ raw address in the Blobs marker as a fallback so the signup stays durable, but
 there is no SES console or CSV list. Set the contact list in production.
 
 The Blobs signup marker records `source`, `createdAt`, `updatedAt`, `audience`,
-`contactId`, `confirmationSentAt`, and (only in the fallback case) `email`.
+`contactId`, `confirmationSentAt`, the `consent` block (`beta`, `betaAt`,
+`marketing`, `marketingAt`), and (only in the fallback case) `email`. The
+`consent` block is the demonstrable-consent record (GDPR Art. 7(1)); both
+timestamps are taken from the server clock.
 
 ### Inspect the list
 
@@ -256,7 +265,8 @@ then redeploy so the function picks them up. Names only; never commit values.
 | `AWS_SECRET_ACCESS_KEY` | yes | IAM secret access key used to sign SES requests. |
 | `AWS_REGION` | yes (in practice) | SES region, for example `us-east-1`. `AWS_DEFAULT_REGION` is accepted as a fallback; the code default is `us-east-1`. |
 | `SIGNUP_FROM_EMAIL` | yes | SES-verified sender identity, for example `Trackd <hello@deanware.com>`. Without it the endpoint returns a generic `500` and sends nothing. |
-| `SES_CONTACT_LIST` | yes for the list | Name of the SES contact list that holds the beta list. Optional at the code level; without it there is no SES list and the address falls back to Blobs. |
+| `SES_CONTACT_LIST` | yes for the list | Name of the SES contact list that holds the beta (transactional) list. Every beta signup joins it. Optional at the code level; without it there is no SES list and the address falls back to Blobs. |
+| `SES_PROMO_CONTACT_LIST` | no | Name of a second SES contact list acting as the promotional audience. Only addresses whose request carried `marketing_consent: true` are added. Unset means no promotional audience, which is the safe default. |
 | `SIGNUP_REPLY_TO` | no | Reply-to address. Defaults to `trackd@deanware.com`. |
 | `SIGNUP_HASH_SALT` | recommended | Secret used to HMAC addresses and IPs before they become store keys or log values. Set it once; changing it changes the keys and resets duplicate suppression. |
 | `AWS_SESSION_TOKEN` | no | Only for temporary (STS) credentials. |
@@ -287,8 +297,10 @@ sent".
 2. Request production access to leave the SES sandbox. A sandboxed account can
    only send to verified addresses, so confirmations to real visitors will be
    rejected until production access is granted.
-3. Create the contact list (for example `trackd-beta`). This is the list.
-4. Create an IAM user with programmatic credentials and only the two permissions
+3. Create the contact list (for example `trackd-beta`). This is the
+   transactional list. Optionally create a promotional list (for example
+   `trackd-promo`) and set `SES_PROMO_CONTACT_LIST` to it.
+4. Create an IAM user with programmatic credentials and only the permissions
    in section 3.
 5. Set the environment variables above and redeploy.
 
@@ -355,9 +367,9 @@ Fixed-window, per IP, using Netlify Blobs:
   signup still succeeds and the outage is logged. Availability is preferred over
   a best-effort throttle during a storage outage.
 
-The slot is claimed after email validation and before the provider-ready check,
-so a submission that passes validation but hits an unconfigured provider still
-consumes a slot.
+The slot is claimed after the consent and email validation and before the
+provider-ready check, so a submission that passes validation but hits an
+unconfigured provider still consumes a slot.
 
 ### Duplicate handling (idempotent)
 
@@ -368,6 +380,17 @@ A repeat signup never double-stores. Two independent layers guarantee this:
    `duplicate: true`. No second row is created.
 2. **The marker is a single key per address** (`signup:<HMAC>`), so a write
    overwrites the same record instead of adding another.
+
+The consent block is part of the overwritten marker. A repeat keeps the earliest
+recorded `betaAt`/`marketingAt`, so the original consent act is preserved rather
+than re-dated; a later signup that turns `marketing_consent` on sets
+`marketingAt` for the first time, and one that turns it off records
+`marketing: false, marketingAt: null`.
+
+On the resend-cooldown path (a repeat within `SIGNUP_RESEND_COOLDOWN_SECONDS`)
+the handler returns the idempotent `200` without re-sending, but it still writes a
+changed consent value to the marker, so a repeat signup that flips the marketing
+box is recorded rather than silently ignored.
 
 On top of that, the marker records `confirmationSentAt`. If a confirmation was
 already sent within `SIGNUP_RESEND_COOLDOWN_SECONDS` (default 24 hours), the
@@ -392,12 +415,18 @@ npm test
 
 The suite starts real local HTTP servers standing in for SES, so the handler, the
 SES provider, the SigV4 signer, and the CSV export are all exercised over actual
-sockets. Expected: 39 tests, 39 pass.
+sockets. Expected: 48 tests, 48 pass.
 
 Against a deployed site:
 
 ```bash
-# Valid address: expect 200 {"status":"ok"} and an email within about a minute.
+# Valid address with the required beta consent: expect 200 {"status":"ok"} and an
+# email within about a minute.
+curl -sS -i -X POST https://trackd.deanware.com/api/beta-signup \
+  -H 'Content-Type: application/json' \
+  --data '{"email":"you@example.com","honeypot":"","source":"curl-test","beta_consent":true,"marketing_consent":false}'
+
+# Missing beta_consent: expect 400 and nothing stored.
 curl -sS -i -X POST https://trackd.deanware.com/api/beta-signup \
   -H 'Content-Type: application/json' \
   --data '{"email":"you@example.com","honeypot":"","source":"curl-test"}'
@@ -405,15 +434,16 @@ curl -sS -i -X POST https://trackd.deanware.com/api/beta-signup \
 # Filled honeypot: expect 400 and nothing stored.
 curl -sS -i -X POST https://trackd.deanware.com/api/beta-signup \
   -H 'Content-Type: application/json' \
-  --data '{"email":"bot@example.com","honeypot":"x","source":"curl-test"}'
+  --data '{"email":"bot@example.com","honeypot":"x","source":"curl-test","beta_consent":true}'
 
 # Invalid address: expect 400 with a clear message.
 curl -sS -i -X POST https://trackd.deanware.com/api/beta-signup \
   -H 'Content-Type: application/json' \
-  --data '{"email":"not-an-email","honeypot":"","source":"curl-test"}'
+  --data '{"email":"not-an-email","honeypot":"","source":"curl-test","beta_consent":true}'
 ```
 
-Then confirm the address appears in the SES contact list and that the
+Then confirm the address appears in the SES transactional contact list (and,
+only when `marketing_consent: true`, in the promotional list) and that the
 confirmation email arrived with the Chrome Web Store link and the five numbered
 steps.
 
@@ -424,7 +454,7 @@ steps.
 | `500` "couldn't save your email" on every request | Provider not ready: missing `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or `SIGNUP_FROM_EMAIL`, or the variables were added without a redeploy. |
 | `500` only for real addresses | SES is still in the sandbox, so it can only send to verified addresses. Request production access. |
 | `500` with a region or endpoint error in the logs | `AWS_REGION` does not match the region of the verified sending identity. |
-| `400` "could not be processed" from a working client | Wrong `Content-Type`, body over 2048 bytes, or the form's honeypot field is being filled. |
+| `400` "could not be processed" from a working client | Wrong `Content-Type`, body over 2048 bytes, the form's honeypot field is being filled, or `beta_consent` is not exactly boolean `true` (a missing/false/stringified tick fails here). |
 | `400` "too many signup attempts" during manual testing | You hit `RATE_LIMIT_MAX` within `RATE_LIMIT_WINDOW_SECONDS` from one IP. Wait for the window to reset or raise the limit. |
 | Confirmation not re-sent to the same address | A confirmation was sent within `SIGNUP_RESEND_COOLDOWN_SECONDS` (default 24 hours). This is the idempotent path. |
 | Address stored but no email | The send failed; the request returned `500` and the address stayed in the list. Retry the same signup to re-send without duplicating the contact. |

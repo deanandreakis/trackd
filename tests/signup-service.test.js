@@ -55,19 +55,23 @@ function memoryStore(overrides) {
 function fakeAudienceProvider(initial) {
   const state = Object.assign({ failAdd: false, failSend: false }, initial);
   const contacts = new Set();
+  const calls = []; // [{ email, marketing }]
   const sends = [];
   return {
     state,
     contacts,
+    calls,
     sends,
     ready: true,
-    async addContact(email) {
+    async addContact(email, options) {
+      const marketing = Boolean(options && options.marketing === true);
+      calls.push({ email, marketing });
       if (state.failAdd) {
         throw Object.assign(new Error('contact list down'), { code: 'contact_http_500' });
       }
       const duplicate = contacts.has(email);
       contacts.add(email);
-      return { stored: true, duplicate, contactId: email };
+      return { stored: true, duplicate, contactId: email, marketing, promotional: marketing };
     },
     async sendConfirmation(email) {
       if (state.failSend) {
@@ -116,6 +120,54 @@ test('storeSignup twice with the same email stores exactly one record', async ()
   assert.equal(store.map.get(keys[0]).source, 'footer', 'the record was updated in place');
   assert.equal(store.map.get(keys[0]).createdAt, first.createdAt, 'createdAt preserved');
   assert.equal(store.map.get(keys[0]).email, undefined, 'audience holds the address');
+});
+
+test('storeSignup records consent evidence and forwards the marketing flag', async () => {
+  const { svc, store, provider } = service();
+
+  const result = await svc.storeSignup('consent@example.com', 'hero', {
+    marketing: true,
+  });
+  assert.equal(result.marketing, true);
+  assert.equal(result.promotional, true);
+  assert.equal(provider.calls[0].marketing, true);
+
+  const key = [...store.map.keys()].find((k) => k.startsWith('signup:'));
+  assert.deepEqual(store.map.get(key).consent, {
+    beta: true,
+    betaAt: 1_700_000_000_000,
+    marketing: true,
+    marketingAt: 1_700_000_000_000,
+  });
+
+  // Absent / non-boolean consent means no marketing consent, and the flag is
+  // still forwarded to the provider as false.
+  const { svc: svc2, store: store2, provider: provider2 } = service();
+  await svc2.storeSignup('nomarketing@example.com', 'hero', { marketing: 'true' });
+  const key2 = [...store2.map.keys()].find((k) => k.startsWith('signup:'));
+  assert.equal(store2.map.get(key2).consent.marketing, false);
+  assert.equal(store2.map.get(key2).consent.marketingAt, null);
+  assert.equal(provider2.calls[0].marketing, false);
+});
+
+test('recordConsent refreshes only the consent block and is a no-op when unchanged', async () => {
+  const { svc, store } = service();
+  await svc.storeSignup('rc@example.com', 'hero', { marketing: false });
+  const key = [...store.map.keys()].find((k) => k.startsWith('signup:'));
+
+  // Unchanged value: no write, marker untouched.
+  const same = await svc.recordConsent('rc@example.com', { marketing: false });
+  assert.equal(same.consent.marketing, false);
+
+  // Changed value: consent flips, source/createdAt preserved.
+  const changed = await svc.recordConsent('rc@example.com', { marketing: true });
+  assert.equal(changed.consent.marketing, true);
+  assert.equal(changed.consent.marketingAt, 1_700_000_000_000);
+  assert.equal(changed.source, 'hero');
+  assert.equal(store.map.get(key).consent.beta, true);
+
+  // No marker: nothing to do.
+  assert.equal(await svc.recordConsent('missing@example.com', { marketing: true }), null);
 });
 
 test('sendConfirmation delivers a real message with the install URL and numbered steps', async () => {

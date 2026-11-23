@@ -78,7 +78,10 @@ function event(body, headers) {
   return {
     httpMethod: 'POST',
     headers: Object.assign({ 'content-type': 'application/json' }, headers || {}),
-    body: JSON.stringify(body),
+    // Contract v2: beta_consent must be exactly boolean true or the handler
+    // returns the generic 400. The security probes below exercise the post-
+    // consent code paths, so a valid consent is the realistic baseline.
+    body: JSON.stringify(Object.assign({ beta_consent: true }, body)),
   };
 }
 

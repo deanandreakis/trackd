@@ -16,11 +16,18 @@
 //   emailHash(email)                   -> the address HMAC (never the address)
 //   signupKey(email)                   -> the durable marker key
 //   getSignup(email)                   -> stored marker | null   (StoreError)
-//   storeSignup(email, source)         -> { emailHash, duplicate, stored,
-//                                           audience, createdAt, confirmationSentAt }
-//                                         idempotent; ProviderError / StoreError
+//   storeSignup(email, source, consent) -> { emailHash, duplicate, stored,
+//                                            audience, contactId, marketing,
+//                                            promotional, createdAt,
+//                                            confirmationSentAt }
+//                                          idempotent; ProviderError / StoreError
+//                                         `consent` is { marketing: boolean };
+//                                         beta consent is implied true because
+//                                         the HTTP handler rejects any other
+//                                         value before the service is reached.
 //   claimConfirmation(email, windowMs) -> true if this request may send now
 //   releaseConfirmation(email, windowMs) -> drop a claim after a failed send
+//   recordConsent(email, consent)      -> refresh the consent block only
 //   sendConfirmation(email)            -> { id }               (ProviderError)
 //   markConfirmationSent(email, meta)  -> updated marker       (StoreError)
 //
@@ -82,6 +89,30 @@ function asProviderError(err, phase) {
   const wrapped = new ProviderError(code, status);
   wrapped.cause = err;
   return wrapped;
+}
+
+// Consent evidence block for the stored marker.
+//
+// `beta` is always true here: the HTTP handler rejects anything but an explicit
+// boolean true before the service runs, so reaching this point *is* the beta
+// consent act. The timestamps are the evidence trail (GDPR Art. 7(1)) and come
+// from the server clock (`at`), never from client input. A repeat signup keeps
+// the earliest recorded times so the original consent act is preserved rather
+// than being silently re-dated.
+function buildConsent(prior, marketing, at) {
+  const previous = prior || {};
+  const betaAt = typeof previous.betaAt === 'number' ? previous.betaAt : at;
+  let marketingAt = null;
+  if (marketing === true) {
+    marketingAt =
+      typeof previous.marketingAt === 'number' ? previous.marketingAt : at;
+  }
+  return {
+    beta: true,
+    betaAt,
+    marketing: marketing === true,
+    marketingAt,
+  };
 }
 
 function createSignupService(options) {
@@ -150,23 +181,36 @@ function createSignupService(options) {
 
     // Idempotent upsert of the address into the durable list, plus the
     // operational marker. A repeat updates/ignores; it never double-stores.
-    async storeSignup(email, source) {
+    // `consent` is { marketing: boolean } — the explicit marketing opt-in, if
+    // any. Beta consent is implied by reaching this method.
+    async storeSignup(email, source, consent) {
       const normalized = normalizeEmail(email);
       if (!normalized) throw new ConfigError('invalid_email', 0);
 
+      const wantsMarketing = Boolean(consent && consent.marketing === true);
       const sourceValue = normalizeSource(source);
       const hashValue = emailHash(normalized);
       const key = 'signup:' + hashValue;
 
       // 1. The list. The provider keys contacts by address, so a repeat is its
-      //    AlreadyExists path rather than a second entry.
-      let contact = { stored: false, duplicate: false, contactId: null };
+      //    AlreadyExists path rather than a second entry. The marketing flag is
+      //    passed through so only a consented address can reach a promotional
+      //    audience (see netlify/lib/ses-provider.js addContact).
+      let contact = {
+        stored: false,
+        duplicate: false,
+        contactId: null,
+        promotional: false,
+      };
       try {
-        const result = await provider.addContact(normalized);
+        const result = await provider.addContact(normalized, {
+          marketing: wantsMarketing,
+        });
         contact = {
           stored: Boolean(result && result.stored),
           duplicate: Boolean(result && result.duplicate),
           contactId: (result && result.contactId) || null,
+          promotional: Boolean(result && result.promotional),
         };
       } catch (err) {
         throw asProviderError(err, 'contact');
@@ -192,6 +236,14 @@ function createSignupService(options) {
         updatedAt: now(),
         audience: contact.stored,
         contactId: contact.contactId,
+        // Consent evidence: the booleans the visitor actually submitted, plus
+        // the server-clock timestamps that prove when (GDPR Art. 7(1)). Never
+        // derived from client-supplied times.
+        consent: buildConsent(
+          existing && existing.consent,
+          wantsMarketing,
+          now()
+        ),
       });
       record.confirmationSentAt =
         (existing && existing.confirmationSentAt) || null;
@@ -223,9 +275,36 @@ function createSignupService(options) {
         stored: contact.stored,
         audience: record.audience,
         contactId: record.contactId,
+        marketing: record.consent.marketing,
+        promotional: contact.promotional,
         createdAt: record.createdAt,
         confirmationSentAt: record.confirmationSentAt,
       };
+    },
+
+    // Refresh just the consent block of an existing marker. Used on the
+    // resend-cooldown path: the address was already stored and emailed
+    // recently, so the handler returns the idempotent 200 without a new send —
+    // but a visitor whose marketing choice changed must not have that choice
+    // silently dropped. No-op when the value is unchanged or no marker exists.
+    async recordConsent(email, consent) {
+      const normalized = normalizeEmail(email) || email;
+      const key = signupKey(normalized);
+      const existing = await readMarker(key);
+      if (!existing) return null;
+
+      const wantsMarketing = Boolean(consent && consent.marketing === true);
+      const prior = existing.consent || {};
+      if (prior.marketing === wantsMarketing && prior.beta === true) {
+        return existing;
+      }
+
+      const record = Object.assign({}, existing, {
+        consent: buildConsent(prior, wantsMarketing, now()),
+        updatedAt: now(),
+      });
+      await writeMarker(key, record);
+      return record;
     },
 
     // Atomically claim the right to send one confirmation for this address

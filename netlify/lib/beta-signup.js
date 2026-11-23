@@ -8,11 +8,24 @@
 // delegated to the reusable signup service (netlify/lib/signup-service.js),
 // which is injected, so the contract can be tested without Netlify or AWS.
 //
-// Frozen API contract (frontend built against this in parallel):
+// Frozen API contract v2 (frontend built against this in parallel):
 //   POST /api/beta-signup
-//   request  { email: string, honeypot: string, source: string }
+//   request  { email: string, honeypot: string, source: string,
+//              beta_consent: boolean, marketing_consent: boolean }
 //   200      { "status": "ok" }
 //   400      { "status": "error", "message": string }
+//
+// Consent (contract v2, frozen by compliance 19 Nov 2026):
+// - `beta_consent` must be exactly boolean true. Missing, false, "true", 1 and
+//   null are all rejected with the generic MESSAGES.invalidRequest — the same
+//   message the honeypot case returns, so the response never reveals which
+//   check failed.
+// - `marketing_consent` is optional and true only on an explicit boolean true.
+//   It is never derived from any other field.
+// - The handler records the consent decision (consent.beta / consent.marketing)
+//   with server-clock timestamps in the stored marker, and only a consented
+//   address is added to a promotional audience. These two timestamps are the
+//   evidence trail for GDPR Art. 7(1); they never come from client input.
 //
 // Design notes:
 // - The raw email is never logged. Logs carry a salted HMAC prefix of the
@@ -205,6 +218,20 @@ function createHandler(options) {
       return json(400, { status: 'error', message: MESSAGES.invalidRequest });
     }
 
+    // Consent is the lawful basis for the beta signup and the install email
+    // (GDPR Art. 6(1)(a)) and the controller must be able to demonstrate it
+    // (Art. 7(1)). beta_consent must be exactly boolean true: missing, false,
+    // "true", 1 and null are all rejected here, with the same generic message
+    // as the honeypot case, so the response does not reveal which check failed.
+    if (payload.beta_consent !== true) {
+      return json(400, { status: 'error', message: MESSAGES.invalidRequest });
+    }
+
+    // Marketing consent is a separate, optional purpose. It is true only on an
+    // explicit boolean true; absent, false, "true", 1 and null all mean "no
+    // marketing consent" and are never coerced from another field.
+    const marketingConsent = payload.marketing_consent === true;
+
     const email = normalizeEmail(payload.email);
     if (!email) {
       return json(400, { status: 'error', message: MESSAGES.invalidEmail });
@@ -244,13 +271,25 @@ function createHandler(options) {
       typeof sentAt === 'number' &&
       now() - sentAt < config.resendCooldownMs
     ) {
-      // Already stored and already emailed recently. Idempotent success.
+      // Already stored and already emailed recently. Idempotent success — but a
+      // changed consent value is still new evidence and must not be dropped, so
+      // refresh just the consent block before returning.
+      try {
+        await service.recordConsent(email, { marketing: marketingConsent });
+      } catch (err) {
+        logger.error('beta-signup: consent refresh failed', {
+          emailHash: emailHash.slice(0, 12),
+          code: err && err.code ? err.code : 'store_error',
+        });
+      }
       return json(200, { status: 'ok' });
     }
 
     let signup;
     try {
-      signup = await service.storeSignup(email, source);
+      signup = await service.storeSignup(email, source, {
+        marketing: marketingConsent,
+      });
     } catch (err) {
       logger.error('beta-signup: audience write failed', {
         emailHash: emailHash.slice(0, 12),
