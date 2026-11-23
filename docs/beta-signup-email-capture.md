@@ -225,10 +225,11 @@ Without the credentials or `SIGNUP_FROM_EMAIL` the endpoint cannot send, so it
 returns a generic `500` and does not store the address. That is deliberate: the
 contract's success means "stored and email sent".
 
-> **Compliance follow-up.** `privacy-policy.html` §6/§7/§9 and
-> `docs/beta-email-consent-runbook.md` still name **Resend** as the email
-> processor. They must be updated to Amazon SES (AWS) before this endpoint is
-> switched on in production. Routed as a separate compliance card.
+> **Compliance follow-up — RESOLVED (23 Nov 2026, task t_b3048688).** `privacy-policy.html`
+> §4/§6/§7 and `docs/beta-email-consent-runbook.md` have been updated to name **Amazon SES (AWS)** as the
+> email processor and beta-contact-list store, and to match the SES transport, env vars, AUP and DKIM
+> guidance in this document. Note the corrected `privacy-policy.html` is committed locally but `main` is not
+> pushed, so the **live** policy still says Resend until the deploy lands.
 
 ## Verifying
 

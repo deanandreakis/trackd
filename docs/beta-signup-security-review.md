@@ -97,5 +97,6 @@ secondary limiter.
   fix; today the endpoint stores and sends in one step.
 - **Live verification** still needs AWS SES credentials + a Netlify deploy
   (inherited from `t_8cb89494`).
-- **Compliance:** `privacy-policy.html` and the consent runbook still name
-  Resend as the processor; update to Amazon SES before production.
+- **Compliance:** `privacy-policy.html` and the consent runbook now name **Amazon SES (AWS)** as the email
+  processor (updated 23 Nov 2026, task t_b3048688); the correction is committed locally but not pushed, so
+  the live policy still says Resend until `main` deploys.

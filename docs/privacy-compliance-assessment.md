@@ -5,8 +5,14 @@ address capture) and the Trackd Chrome extension it promotes.
 
 **Correction notice:** the first version of this assessment described the *live served* page and missed
 what had already landed in the repo (`/opt/data/trackd`, commit `0f4e479`): a compliant consent block,
-`data-netlify="true"`, the honeypot, and a Resend-backed confirmation email. Findings below are
-re-verified against the repo and the live deployment separately, because they disagree.
+`data-netlify="true"`, the honeypot, and a confirmation email (then sent through Resend — it is now sent
+through **AWS SES**; see the third correction below). Findings below are re-verified against the repo and
+the live deployment separately, because they disagree.
+
+**Third correction (23 Nov 2026, task t_b3048688): the email provider is AWS SES, not Resend.** Every
+"Resend" reference below that described the live beta-signup path has been rewritten for **AWS SES**
+(`netlify/lib/ses-provider.js`, SES v2 REST API signed in-repo by `netlify/lib/aws-sigv4.js`). The
+authoritative design note is `docs/beta-signup-email-capture.md`.
 
 > Risk levels: **[HIGH]** = likely enforcement/rejection, or a false statement inside a published
 > document; **[MEDIUM]** = real exposure or a documented requirement not yet met; **[LOW]** = housekeeping.
@@ -22,14 +28,14 @@ re-verified against the repo and the live deployment separately, because they di
 | 1 | Email address | Beta signup form | Add to testing group; send install instructions | Consent + Art. 6(1)(b) service request | Netlify Forms | Netlify submissions DB, **US** | Beta run + max 12 months | Netlify (processor) |
 | 2 | Email address | Same form, optional tick | Product news | Consent (separate, optional tick) | Developer / ESP | Mailing list | Until unsubscribe | ESP, once one is used |
 | 3 | IP address, user-agent, timestamp | Beta signup form (auto-added by Netlify) | Spam/abuse filtering | Legitimate interest | Netlify, Akismet | Netlify submissions DB, **US** | Deleted with the submission | Netlify, Akismet (processors) |
-| 4 | Email address (transient) | Netlify event function → Resend API | Deliver the install-instructions email | Art. 6(1)(b) service request | Netlify function, Resend | Transit only; Resend logs for delivery | Provider log retention | Resend (processor) |
+| 4 | Email address | Netlify function → AWS SES | Deliver the install-instructions email; hold the beta contact list | Art. 6(1)(b) service request | Netlify function, AWS SES | SES contact list (US); Netlify Blobs marker | Beta run + max 12 months | AWS (processor) |
 | 5 | Page views, referrer, browser/OS/device, country | Website | Measure promotion effectiveness | Legitimate interest | Self-hosted Umami (`umami.andreakis.org`) | Our server | Aggregated, cookieless | None (self-hosted) |
 | 6 | Anonymous usage events (event type + random session id) | Extension (`ea08a004-…`) | Reliability / feature measurement | Legitimate interest | Self-hosted Umami | Our server | Aggregated | None (self-hosted) |
 | 7 | Gmail metadata + billing email content (restricted scope `gmail.readonly`) | User's browser, after OAuth | Detect subscriptions | Consent (OAuth grant) | Trackd extension, client-side only | `chrome.storage.local`, on device | Until uninstall | **None** — never leaves the device |
 | 8 | Email + Gumroad licence key | Gumroad checkout (Pro) | Licence verification | Contract | Gumroad | Gumroad, **US** | Gumroad's own policy | Gumroad (independent controller / merchant of record) |
 
 Cross-check with the delivered policy: items 1–4 are the beta-signup sections; 5–6 analytics; 7 the
-extension; 8 the Pro purchase. **Item 3 (IP + user-agent) and item 4 (Resend) were disclosed nowhere** in
+extension; 8 the Pro purchase. **Item 3 (IP + user-agent) and item 4 (email delivery) were disclosed nowhere** in
 the previous policy — both are now in it, and item 3 is also a CWS disclosure obligation ("all parties
 the user data will be shared with").
 
@@ -48,7 +54,7 @@ collection. **Cause is deployment staleness, not missing code** — the repo alr
 ### B2. The published policy's promises have no mechanism until the wordings and deploy land — **[HIGH]**
 
 "Unsubscribe anytime" and "we email you install instructions" are unqualified promises. Today, on the
-live site, neither is backed by a working mechanism. **Fix:** deploy (B1/B7), set the Resend environment
+live site, neither is backed by a working mechanism. **Fix:** deploy (B1/B7), set the SES environment
 variables (B7b), and keep the mailbox unsubscribe path documented in
 `consent-and-unsubscribe-runbook.md` parts 2–3. The delivered policy now names the exact deletion route
 ("Delete my data" → `trackd@deanware.com` → 30 days), so that route must actually be operated.
@@ -90,8 +96,9 @@ policy's analytics section.
 `deanware.com` is Google Workspace (MX `aspmx.l.google.com`, SPF `include:_spf.google.com` only, DMARC
 `p=none`). Its acceptable-use terms prohibit unsolicited bulk mail and there are daily recipient caps.
 One-to-one beta emails from the mailbox are fine; a launch blast to the whole list is not. Route anything
-promotional through an ESP that owns the unsubscribe link and `List-Unsubscribe` header — Resend is
-already wired for transactional mail and offers broadcasts/audiences if you want one provider for both.
+promotional through an ESP that owns the unsubscribe link and `List-Unsubscribe` header. AWS SES is wired
+for transactional mail only (it has no campaign/audience product here), so a marketing send needs either a
+campaign-capable ESP or a hand-rolled unsubscribe path in the function.
 
 ### B7. Deployment/code gaps in the live form — **[MEDIUM]**
 
@@ -101,14 +108,17 @@ earlier investigation into "the form doesn't work" concluded the markup is corre
 **HTTP 303 → Netlify's recorded-submission path**, so the fix is to ship the current build, not to debug
 the handler.
 
-**b. The confirmation email is not switched on in production.** `netlify/functions/submission-created.js`
-sends through Resend and requires `RESEND_API_KEY` (plus `SIGNUP_FROM_EMAIL`; the default sandbox sender
-`onboarding@resend.dev` only delivers to the account owner). Unset → submissions stored, **no email
-sent**, i.e. the policy's install-instructions promise silently fails. **Blocking.**
+**b. The confirmation email is not switched on in production.** The live path sends through **AWS SES**
+(`netlify/lib/ses-provider.js`) and requires `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`
+and `SIGNUP_FROM_EMAIL` (a SES-verified sender), plus `SES_CONTACT_LIST` for the beta list. Unset → the
+endpoint returns a generic `500` and stores nothing, i.e. the policy's install-instructions promise
+silently fails. A new SES account is also **sandboxed** (send only to verified addresses, low quota)
+until production access is granted. **Blocking.**
 
-**c. SPF/DKIM for Resend** are not in DNS yet (SPF is Google-only), so even once the key is set, sends
-from `deanware.com` via Resend will not align. Deliverability, and it decides whether beta emails arrive
-at all.
+**c. SES DKIM is not in DNS yet.** SES Easy DKIM needs **three CNAME records** for `deanware.com`; they
+are not present (verified 23 Nov 2026). The apex SPF is `v=spf1 include:_spf.google.com ~all` (Google-only)
+and DMARC is `p=none`. DKIM signing aligns with `deanware.com` by itself, so SPF alignment is not required
+for authentication — this is deliverability, and it decides whether beta emails arrive at all.
 
 ### B8. Restricted-scope OAuth verification for `gmail.readonly` — **[MEDIUM]**
 
@@ -155,7 +165,7 @@ landing pages", so the marketing site and its email form are in scope, not just 
 - **Privacy policy** — if the product handles any user data it must post an accurate, up-to-date policy
   that comprehensively discloses how data is collected, used and shared, plus **all parties it is shared
   with**, and link it in the designated Developer Dashboard field. → Delivered policy now lists Netlify,
-  Akismet, Resend, Umami and Gumroad and discloses the IP/user-agent metadata. Verify the Dashboard field
+  Akismet, AWS, Umami and Gumroad and discloses the IP/user-agent metadata. Verify the Dashboard field
   still points at `/privacy-policy`.
 - **Disclosure requirements** — prior to installation the product must prominently disclose what user
   data is collected and how it is used and obtain affirmative, informed consent; post-install changes in
@@ -165,7 +175,7 @@ landing pages", so the marketing site and its email form are in scope, not just 
   the affirmative Limited Use statement on the extension's website (B3); collection limited to the single
   purpose (B5).
 - **Handling** — secure handling, modern cryptography in transit (HTTPS is already true), no public
-  disclosure of auth information (keep Netlify/Resend/Gumroad keys out of the repo and out of logs).
+  disclosure of auth information (keep Netlify/AWS/Gumroad keys out of the repo and out of logs).
 - **Account hygiene** — 2-Step Verification is mandatory on the developer account; keep the contact email
   monitored, since Google removes items from unresponsive developers.
 
@@ -188,7 +198,7 @@ credit-worthiness or lending use.
 - **GDPR/PECR (EU/UK)** — marketing email needs prior consent; the soft opt-in only covers existing
   customers and similar products, which does not stretch to a beta waitlist; unsubscribing must be as
   easy as subscribing.
-- **ESP acceptable use** — Resend, Mailchimp and peers all require permission-based lists, prohibit
+- **ESP acceptable use** — AWS SES, Mailchimp and peers all require permission-based lists, prohibit
   purchased or scraped lists, require a working unsubscribe for campaigns, and suspend accounts that
   exceed abuse-complaint rates. Their policies become part of Trackd's compliance surface once adopted.
 
@@ -196,8 +206,11 @@ credit-worthiness or lending use.
 
 - **GDPR** — controller identified; purpose specific; lawful basis recorded (consent + legitimate
   interest, now written into the policy); retention capped; rights and contact path published; processors
-  under contract with SCCs for US transfers. **Verify a Netlify DPA is accepted on the account** and that
-  Resend's DPA/terms are in place, rather than assuming.
+  under contract with SCCs for US transfers. **Verify a Netlify DPA is accepted on the account.** AWS needs
+  no account action: the AWS Data Processing Addendum incorporating the SCCs is part of the AWS Service
+  Terms and applies automatically when AWS processes customer data. **Open item:** confirm which AWS
+  contracting entity the account is under (Amazon Web Services, Inc. vs Amazon Web Services EMEA SARL),
+  because the policy names the US entity.
 - **CCPA/CPRA** — notice at collection, policy content requirements, and rights to know, delete, correct
   and opt out of sale/share. Trackd does not sell or share for behavioural advertising, so no
   "Do Not Sell or Share" link is required, but the "we do not sell" statement must stay true. Threshold
@@ -223,9 +236,11 @@ credit-worthiness or lending use.
 2. **Deploy `main`** so the live form carries the consent block, `data-netlify="true"` and the honeypot;
    confirm a real submission stores `beta_consent: on`. *(card t_aea9766e)*
 3. Apply the two wording fixes to the consent labels (B4 / runbook part 1).
-4. **Set `RESEND_API_KEY` + `SIGNUP_FROM_EMAIL`** in Netlify and redeploy, or the promised confirmation
+4. **Set the AWS env vars** (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`,
+   `SIGNUP_FROM_EMAIL`, `SES_CONTACT_LIST`) in Netlify, redeploy, **and leave the SES sandbox**, or the
+   promised confirmation
    email never sends; verify a real install-instructions email arrives.
-5. Add Resend's SPF/DKIM records for `deanware.com`.
+5. Add the SES Easy DKIM CNAME records for `deanware.com` (three CNAMEs; the SPF record is untouched).
 6. Point the CWS Developer Dashboard privacy-policy field at `/privacy-policy`; align the privacy-practices
    answers with section 1 of the delivered policy.
 7. Verify the Netlify DPA is accepted; confirm the OAuth verification / CASA position (B8).

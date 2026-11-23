@@ -10,29 +10,34 @@ A promise with no procedure behind it is a false statement, so this file is what
 - **Not covered here:** extension/Gmail data (never leaves the user's browser — nothing to delete),
   Gumroad purchase records (Gumroad is an independent controller; route the request to them), Umami
   analytics (aggregate only, no identifier retained).
-- **Where the list lives:** Netlify, site `trackd-deanware` (team `deanware`), **Forms → `trackd-test-group`**.
-  It is *not* in any product database and there is no Trackd account system.
+- **Where the list lives:** the authoritative store is the **AWS SES contact list** (`SES_CONTACT_LIST`,
+  e.g. `trackd-beta`; SES console → Configuration → Contact lists), with a keyed marker in the **Netlify
+  Blobs** store `beta-signups`. The legacy **Netlify Forms** store (site `trackd-deanware`, **Forms →
+  `trackd-test-group`**) still holds any submission captured before the SES endpoint went live. It is *not*
+  in any product database and there is no Trackd account system.
 - Companion files: `docs/beta-email-consent-runbook.md` (consent + unsubscribe),
   `scripts/delete-signup-data.py` (this procedure, executable),
   `scripts/verify-netlify-forms-consent.py` (read-only consent read-back).
 
-## 0. Open item that changes this document (checked 19 Nov 2026)
+## 0. Store migration — status (checked 23 Nov 2026, task t_b3048688)
 
-A new endpoint `POST /api/beta-signup` (backend card **t_8cb89494**) is being deployed to replace the
-Netlify Forms transport. Until it is live (today `https://trackd.deanware.com/api/beta-signup` answers
-**404** and the page falls back to the Netlify Forms POST), **Netlify Forms is the store and this document
-is accurate as written**.
+`POST /api/beta-signup` (backend card **t_8cb89494**) replaces the Netlify Forms transport. As of this
+check it is **committed but not deployed**: the SES-backed code is on local `main`, but `main` is not pushed
+and `https://trackd.deanware.com/api/beta-signup` still answers **404**, so the page currently falls back to
+the Netlify Forms POST and that store still holds new addresses. When `main` deploys, the address is written
+to the **AWS SES contact list** (`SES_CONTACT_LIST`) plus a keyed marker in Netlify Blobs, and Netlify Forms
+stops receiving new rows.
 
-Two things must be settled before that endpoint becomes the primary path, or this document becomes a
-description of a store that no longer holds the addresses:
+**This document now covers both stores** — the SES contact list is the authoritative target (§3, §4) and the
+Netlify Forms store is the legacy target. Two things still need to land with the migration:
 
-1. **The store moves.** If the endpoint keeps the address in a provider audience (rather than Netlify
-   Forms), deletion runs in that provider's UI/API, not in Netlify Forms — parts 3, 3a and 5 below must be
-   re-pointed. Tracked on card **t_791777d5's follow-ups**.
+1. **One deletion tool, two stores.** `scripts/delete-signup-data.py` deletes only from the Netlify Forms
+   API. It does **not** yet remove a contact from the SES list, so the `aws sesv2 delete-contact` step in
+   §3/§4 is manual today. Track as a follow-up to the SES migration.
 2. **The consent record must move with it.** The frozen contract currently sends only
    `{email, honeypot, source}`; the consent values never leave the browser, so the endpoint stores no
    proof of consent for the processing the policy describes in §9. Amending the contract is card
-   *"Carry consent evidence through /api/beta-signup"* (backend-developer + frontend-developer).
+   **t_30b0eae6**.
 
 Deleting a record that never recorded consent is easy; proving consent for the records you keep is not.
 Do not let the migration ship without item 2.
@@ -63,8 +68,11 @@ data beyond "request received / request completed + dates".
 
 ## 2. Locate the record
 
-**UI path (no tooling needed):** Netlify UI → site `trackd-deanware` → **Forms** → `trackd-test-group` →
-search the email address. Check both tabs:
+**Authoritative store — AWS SES.** SES console → Configuration → Contact lists → `trackd-beta`, or
+`aws sesv2 list-contacts --contact-list-name trackd-beta` and search for the address.
+
+**Legacy store — Netlify UI:** site `trackd-deanware` → **Forms** → `trackd-test-group` → search the email
+address. Check both tabs:
 
 - **Verified submissions** — normal rows.
 - **Spam submissions** — reachable in the API as `?state=spam`. A submission Akismet flagged (or one
@@ -75,23 +83,37 @@ deletes nothing). See §4.
 
 ## 3. Delete
 
-1. Delete **every** matching submission, in both the verified and spam lists. Netlify cannot edit a
-   submission in place, so a correction is delete-and-recapture — never leave a "corrected" duplicate
-   behind.
-2. Deletion is **permanent and immediate**. Export first only if you actually need the data for something
+1. **SES contact list (authoritative).** Remove the address from the beta list:
+
+   ```bash
+   aws sesv2 delete-contact --contact-list-name trackd-beta --email-address someone@example.com
+   ```
+
+   Also delete the signup marker from the Netlify Blobs store `beta-signups` if present (by hand today; a
+   SES-aware helper is a follow-up).
+2. **Legacy Netlify Forms.** Delete **every** matching submission, in both the verified and spam lists.
+   Netlify cannot edit a submission in place, so a correction is delete-and-recapture — never leave a
+   "corrected" duplicate behind.
+3. Deletion is **permanent and immediate**. Export first only if you actually need the data for something
    else; otherwise do not create a copy, because a backup you keep is still personal data you must then
    delete.
-3. Remove the address from any update/marketing list. If an ESP (Mailchimp/Loops/Resend Broadcasts/…) ever
-   holds the contact, delete it there **and** add it to the suppression list so a later CSV import cannot
-   resurrect it.
-4. If Netlify ever gains a **file-upload field** on this form, note that deleted uploads stay reachable at
+4. Remove the address from any update/marketing list. If an ESP (Mailchimp/Loops/Resend Broadcasts/…) — a
+   *possible future* provider, not what ships today — ever holds the contact, delete it there **and** add it
+   to the suppression list so a later CSV import cannot resurrect it.
+5. If Netlify ever gains a **file-upload field** on this form, note that deleted uploads stay reachable at
    their direct URL for 24 hours. The beta form has no upload field today, so this does not apply.
-5. Keep the address on the **suppression list** (§5) — this is the one retention that survives an erasure
+6. Keep the address on the **suppression list** (§5) — this is the one retention that survives an erasure
    request, and the confirmation reply must say so.
 
-## 4. The API route (programmatic, auditable)
+## 4. The API routes (programmatic, auditable)
 
-Verified endpoints (base `https://api.netlify.com/api/v1`):
+**AWS SES (authoritative store):**
+
+```bash
+aws sesv2 delete-contact --contact-list-name trackd-beta --email-address someone@example.com
+```
+
+**Legacy Netlify Forms store (Netlify REST API v1, base `https://api.netlify.com/api/v1`):**
 
 ```
 GET    /sites/{site_id}/forms                     # find the form_id for trackd-test-group
@@ -138,25 +160,32 @@ us not to.
 
 ## 6. Retention sweep (on a calendar, not on request)
 
-Netlify **never expires form submissions on its own**, so the policy's stated retention ("while the beta
-runs, max 12 months after it ends") is fiction without a scheduled sweep. Diarise every 6 months:
+Neither the SES contact list nor Netlify Forms expires entries on its own, so the policy's stated retention
+("while the beta runs, max 12 months after it ends") is fiction without a scheduled sweep. Diarise every 6
+months:
 
 ```bash
+# Legacy Netlify Forms store (the script is Netlify-only today):
 python3 scripts/delete-signup-data.py --list                    # see what is stored
 python3 scripts/delete-signup-data.py --sweep --older-than-days 395 --confirm
+# SES beta list: list contacts, then delete each stale one by hand
+aws sesv2 list-contacts --contact-list-name trackd-beta
+aws sesv2 delete-contact --contact-list-name trackd-beta --email-address someone@example.com
 ```
 
-1. Export the current list to CSV and store it somewhere the operator controls (that backup is now
-   personal data you are responsible for — delete it when the beta closes).
-2. Delete submissions older than the policy's stated retention.
+1. Export the current list to CSV (`scripts/export-beta-signups.mjs` for SES, or the Netlify CSV) and store
+   it somewhere the operator controls (that backup is now personal data you are responsible for — delete it
+   when the beta closes).
+2. Delete entries older than the policy's stated retention.
 3. When the beta closes: **stop collecting** (remove the form or the endpoint), then delete the whole list
    once the 12-month period from §6 lapses.
 4. Record the sweep date and how many rows were removed.
 
 ## 7. Confirmation and closing the request
 
-1. Reply in writing to the requester: what was deleted (the signup submission and its metadata; any
-   mailing-list entry), when, and the fact that the bare address stays on the do-not-contact list and why.
+1. Reply in writing to the requester: what was deleted (the SES contact-list entry and/or the signup
+   submission and its metadata; any mailing-list entry), when, and the fact that the bare address stays on
+   the do-not-contact list and why.
 2. Log completion: request date, completion date, nothing else.
 3. If any part of the request could not be met (e.g. the address also appears in a Gumroad purchase
    record), say so explicitly and name the controller to contact.

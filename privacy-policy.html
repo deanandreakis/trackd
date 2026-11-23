@@ -164,7 +164,7 @@
 
   <p>We do not use the beta email list for advertising, we do not sell it, and we do not share it with anyone except the processors named in section 7.</p>
 
-  <p><strong>The install-instructions email itself</strong> is sent on our behalf through our email provider (Resend) from our Netlify form handler. Your address is passed to that provider only so the message can be delivered; it is not added to any third-party mailing list.</p>
+  <p><strong>The install-instructions email itself</strong> is sent on our behalf through Amazon Web Services (Amazon SES, part of AWS) from our signup handler on Netlify. Your address is passed to AWS so the message can be delivered, and it is kept on our beta contact list (hosted in AWS SES) until you ask us to delete it or the retention period in section 6 ends. It is never added to a third-party marketing list.</p>
 
   <h2>5. Analytics</h2>
 
@@ -190,8 +190,9 @@
       <tr><th>Data</th><th>Retention</th><th>How it is deleted</th></tr>
     </thead>
     <tbody>
-      <tr><td>Beta signup email</td><td>While the beta runs and a maximum of <strong>12 months after it ends</strong>, or sooner on request</td><td>Deleted from the Netlify Forms submission store; also removed from any mailing list</td></tr>
+      <tr><td>Beta signup email</td><td>While the beta runs and a maximum of <strong>12 months after it ends</strong>, or sooner on request</td><td>Deleted from the signup store and removed from the AWS SES beta contact list; also removed from any mailing list</td></tr>
       <tr><td>Beta signup metadata (IP, user-agent)</td><td>Stored with the submission; deleted with it</td><td>Same as above — not stored separately</td></tr>
+      <tr><td>Install-instructions email send (AWS SES)</td><td>AWS does not retain the message content; AWS keeps account/API activity metadata under its own policy</td><td>Nothing to delete on our side — AWS does not store the message</td></tr>
       <tr><td>Marketing opt-in email</td><td>Until you unsubscribe</td><td>Removed from the update list and added to a suppression list</td></tr>
       <tr><td>Local subscription data</td><td>Until you uninstall</td><td>Deleted automatically on uninstall, or by clearing extension data</td></tr>
       <tr><td>Umami analytics</td><td>Aggregated statistics only, no identifier retained</td><td>N/A</td></tr>
@@ -214,7 +215,7 @@
       <tr><td>Google (Gmail API)</td><td>Independent controller for your Google account</td><td>Read-only access to billing-related emails, on your device only</td><td>Your device / Google</td></tr>
       <tr><td>Netlify, Inc.</td><td>Processor — website hosting and form handling</td><td>Stores your beta signup submission (email + IP + user-agent + timestamp)</td><td>United States</td></tr>
       <tr><td>Akismet (Automattic)</td><td>Processor — spam filtering on form submissions</td><td>Submission data checked for spam</td><td>United States</td></tr>
-      <tr><td>Resend, Inc.</td><td>Processor — transactional email delivery</td><td>Sends your install-instructions email; receives your email address for that send only</td><td>United States</td></tr>
+      <tr><td>Amazon Web Services, Inc. (AWS SES)</td><td>Processor — transactional email delivery and beta contact-list storage</td><td>Sends your install-instructions email and holds the beta contact list (your email address) until it is deleted under section 6</td><td>United States</td></tr>
       <tr><td>Umami (self-hosted)</td><td>Our own infrastructure</td><td>Aggregated, cookieless analytics</td><td>Our server</td></tr>
       <tr><td>Gumroad, Inc.</td><td>Independent controller / merchant of record for Pro purchases</td><td>Your email and licence key at purchase time</td><td>United States</td></tr>
     </tbody>
@@ -223,7 +224,7 @@
 
   <p>We do not share your beta email address with any advertising platform, data broker, or information reseller.</p>
 
-  <p><strong>International transfers:</strong> Netlify, Akismet, Resend and Gumroad are based in the United States. Where personal data of an EEA/UK data subject is transferred there, the transfer relies on the <strong>Standard Contractual Clauses</strong> under our agreement with each provider (Netlify publishes a Data Processing Agreement incorporating the SCCs). You can ask us for details of the safeguards in place.</p>
+  <p><strong>International transfers:</strong> Netlify, Akismet, Amazon Web Services (AWS) and Gumroad are based in the United States. Where personal data of an EEA/UK data subject is transferred there, the transfer relies on the <strong>Standard Contractual Clauses</strong> under our agreement with each provider. Netlify publishes a Data Processing Agreement incorporating the SCCs; AWS's Data Processing Addendum, which incorporates the SCCs, forms part of the AWS Service Terms and applies automatically when AWS processes customer data — no separate signature is required in the AWS account. You can ask us for details of the safeguards in place.</p>
 
   <h2>8. Your rights</h2>
 
