@@ -42,19 +42,11 @@
 
 const { signRequest } = require('./aws-sigv4');
 const { buildConfirmation } = require('./confirmation-email');
+const { ProviderError } = require('./signup-errors');
 
 const SERVICE = 'ses';
 const DEFAULT_REGION = 'us-east-1';
 const REQUEST_TIMEOUT_MS = 4000;
-
-class ProviderError extends Error {
-  constructor(code, status) {
-    super(code);
-    this.name = 'ProviderError';
-    this.code = code;
-    this.status = status;
-  }
-}
 
 // SES REST-JSON errors carry the exception name either in the x-amzn-errortype
 // response header (possibly with a URL suffix after ':') or in a `__type` body
@@ -197,7 +189,7 @@ function createSesProvider(options) {
     },
 
     async sendConfirmation(email) {
-      const message = buildConfirmation();
+      const message = buildConfirmation(env);
       const headers = Object.keys(message.headers || {}).map((name) => ({
         Name: name,
         Value: message.headers[name],

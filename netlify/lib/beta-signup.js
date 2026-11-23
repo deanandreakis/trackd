@@ -4,8 +4,9 @@
 //
 // This module is transport-agnostic: it takes a Netlify-style event
 // ({ httpMethod, headers, body, isBase64Encoded }) and returns a Netlify-style
-// response ({ statusCode, headers, body }). Storage and email sending are
-// injected, so the contract can be tested without Netlify or AWS.
+// response ({ statusCode, headers, body }). Persistence and email sending are
+// delegated to the reusable signup service (netlify/lib/signup-service.js),
+// which is injected, so the contract can be tested without Netlify or AWS.
 //
 // Frozen API contract (frontend built against this in parallel):
 //   POST /api/beta-signup
@@ -19,22 +20,21 @@
 // - Rate limiting is a fixed-window claim: each request atomically creates one
 //   of N slot keys via the store's onlyIfNew condition. No read-modify-write
 //   race, so concurrent requests cannot all pass on the same slot.
-// - Duplicate signups are idempotent. The provider's audience is keyed by
-//   address, so a repeat is "already present" rather than a second row. A
+// - Duplicate signups are idempotent; the service owns that guarantee. A
 //   confirmation already sent within the cooldown window is not re-sent.
 // - If the rate-limit store is unavailable the request fails open (the signup
 //   still works) and the failure is logged. Availability wins over a
 //   best-effort throttle during a storage outage.
+// - Provider/store failures surface as typed errors from the service and are
+//   mapped here to a generic 500; nothing internal reaches the client.
 
-const crypto = require('node:crypto');
+const {
+  createSignupService,
+  normalizeEmail,
+  normalizeSource,
+} = require('./signup-service');
 
 const MAX_BODY_BYTES = 2048;
-const MAX_EMAIL_LENGTH = 254;
-const MAX_SOURCE_LENGTH = 120;
-
-// Pragmatic address check: non-empty local part, one @, a domain with a dot and
-// a TLD of at least two characters. Deliberately not RFC 5322-complete.
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 const DEFAULTS = {
   rateLimitMax: 5,
@@ -84,26 +84,6 @@ function readBody(event) {
   return typeof body === 'string' ? body : '';
 }
 
-function normalizeEmail(value) {
-  if (typeof value !== 'string') return null;
-  const email = value.trim().toLowerCase();
-  if (email.length < 3 || email.length > MAX_EMAIL_LENGTH) return null;
-  if (!EMAIL_RE.test(email)) return null;
-  // Reject obvious structural problems the loose regex lets through.
-  const [local, domain] = email.split('@');
-  if (!local || !domain) return null;
-  if (local.startsWith('.') || local.endsWith('.')) return null;
-  if (local.includes('..') || domain.includes('..')) return null;
-  if (domain.startsWith('.') || domain.endsWith('.')) return null;
-  return email;
-}
-
-function normalizeSource(value) {
-  if (typeof value !== 'string') return 'unknown';
-  const source = value.trim().slice(0, MAX_SOURCE_LENGTH);
-  return source || 'unknown';
-}
-
 function defaultClientIp(event) {
   // Netlify sets this header at the edge and overwrites any client-supplied
   // value. x-forwarded-for is only a fallback for local/dev runs.
@@ -114,13 +94,6 @@ function defaultClientIp(event) {
     return forwarded.split(',')[0].trim();
   }
   return 'unknown';
-}
-
-function digest(value, salt) {
-  return crypto
-    .createHmac('sha256', salt)
-    .update(String(value))
-    .digest('hex');
 }
 
 function intFromEnv(env, name, fallback, min) {
@@ -143,7 +116,10 @@ function createHandler(options) {
   if (!store) throw new Error('createHandler: store is required');
   if (!provider) throw new Error('createHandler: provider is required');
 
-  const salt = env.SIGNUP_HASH_SALT || 'trackd-beta-signup-v1';
+  const service =
+    opts.service ||
+    createSignupService({ store, provider, logger, env, now });
+
   const config = {
     rateLimitMax: intFromEnv(env, 'RATE_LIMIT_MAX', DEFAULTS.rateLimitMax, 1),
     rateLimitWindowMs:
@@ -222,26 +198,25 @@ function createHandler(options) {
     }
 
     const source = normalizeSource(payload.source);
-    const emailHash = digest(email, salt);
+    const emailHash = service.emailHash(email);
 
     const ip = getClientIp(event) || 'unknown';
-    const ipHash = digest(ip, salt);
+    const ipHash = service.hash(ip);
 
     if (!(await claimRateSlot(ipHash))) {
       return json(400, { status: 'error', message: MESSAGES.rateLimited });
     }
 
-    if (!provider.ready) {
+    if (!service.ready) {
       logger.error('beta-signup: email provider is not configured', {
         emailHash: emailHash.slice(0, 12),
       });
       return json(500, { status: 'error', message: MESSAGES.unavailable });
     }
 
-    const signupKey = 'signup:' + emailHash;
     let existing = null;
     try {
-      existing = await store.get(signupKey);
+      existing = await service.getSignup(email);
     } catch (err) {
       logger.error('beta-signup: signup store read failed', {
         emailHash: emailHash.slice(0, 12),
@@ -260,20 +235,20 @@ function createHandler(options) {
       return json(200, { status: 'ok' });
     }
 
-    let contact;
+    let signup;
     try {
-      contact = await provider.addContact(email);
+      signup = await service.storeSignup(email, source);
     } catch (err) {
       logger.error('beta-signup: audience write failed', {
         emailHash: emailHash.slice(0, 12),
-        code: err && err.code ? err.code : 'provider_error',
+        code: err && err.code ? err.code : 'store_error',
       });
       return json(500, { status: 'error', message: MESSAGES.unavailable });
     }
 
     let delivery;
     try {
-      delivery = await provider.sendConfirmation(email);
+      delivery = await service.sendConfirmation(email);
     } catch (err) {
       logger.error('beta-signup: confirmation send failed', {
         emailHash: emailHash.slice(0, 12),
@@ -282,23 +257,11 @@ function createHandler(options) {
       return json(500, { status: 'error', message: MESSAGES.unavailable });
     }
 
-    const record = {
-      source,
-      createdAt: (existing && existing.createdAt) || now(),
-      confirmationSentAt: now(),
-      contactId: (contact && contact.contactId) || null,
-      audience: Boolean(contact && contact.stored),
-      deliveryId: (delivery && delivery.id) || null,
-    };
-    // Only keep the address in the operational store when there is no audience
-    // list to hold it. With an audience configured, the audience is the list and
-    // this store carries no raw address.
-    if (!record.audience) {
-      record.email = email;
-    }
-
     try {
-      await store.set(signupKey, record);
+      await service.markConfirmationSent(email, {
+        deliveryId: delivery.id,
+        contactId: signup.contactId,
+      });
     } catch (err) {
       logger.error('beta-signup: signup store write failed', {
         emailHash: emailHash.slice(0, 12),
@@ -311,8 +274,8 @@ function createHandler(options) {
     logger.log('beta-signup: signup stored and confirmation sent', {
       emailHash: emailHash.slice(0, 12),
       source,
-      duplicate: Boolean(contact && contact.duplicate),
-      audience: Boolean(contact && contact.stored),
+      duplicate: Boolean(signup.duplicate),
+      audience: Boolean(signup.audience),
     });
 
     return json(200, { status: 'ok' });

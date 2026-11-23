@@ -10,8 +10,8 @@ where the list lives, and what has to be switched on.
 | Endpoint | `POST https://trackd.deanware.com/api/beta-signup` |
 | Email service | **AWS SES** (SES v2 REST API, SigV4-signed in-repo, no AWS SDK) |
 | Where the list lives | **AWS SES contact list** named by `SES_CONTACT_LIST` (e.g. `trackd-beta`); Netlify Blobs store `beta-signups` is the operational/fallback store |
-| Code | `netlify/functions/beta-signup.js` (adapter) + `netlify/lib/*` (core, SES transport, SigV4 signer) |
-| Tests | `npm test` — 24 tests, including a local SES stub with every on-the-wire signature re-checked against the official AWS signer |
+| Code | `netlify/functions/beta-signup.js` (adapter) + `netlify/lib/*` (core, signup service, SES transport, SigV4 signer) |
+| Tests | `npm test` — 35 tests, including a local SES stub with every on-the-wire signature re-checked against the official AWS signer |
 
 ## Endpoint (frozen contract)
 
@@ -34,9 +34,12 @@ error     500 { "status": "error", "message": string }   // provider/storage out
   same site, so no preflight is needed. A cross-origin caller gets no
   `Access-Control-Allow-Origin` and the browser blocks the response.
 
-The handler is split into a transport-free core (`netlify/lib/beta-signup.js`), a
-provider-agnostic storage/email contract, and a thin Netlify adapter. Everything
-is covered by `tests/beta-signup.test.js`; run `npm test`.
+The handler is split into a transport-free core (`netlify/lib/beta-signup.js`),
+a reusable persistence + confirmation-email service
+(`netlify/lib/signup-service.js`), a typed error module
+(`netlify/lib/signup-errors.js`), and a thin Netlify adapter. Everything is
+covered by `tests/beta-signup.test.js` and `tests/signup-service.test.js`; run
+`npm test`.
 
 > **Not yet implemented — consent evidence.** The live form also sends
 > `beta_consent` / `marketing_consent`, but this endpoint does not read or store
@@ -76,6 +79,35 @@ account was already available — no new vendor, no new DPA, no new bill. The
 transport is behind `netlify/lib/ses-provider.js`'s three-method interface
 (`ready`, `addContact`, `sendConfirmation`), so swapping providers later means
 writing one file and changing one `require` in the Netlify adapter.
+
+### Reusable module — `netlify/lib/signup-service.js`
+
+The persistence and email work lives behind one interface so the HTTP handler,
+and anything else, never talks to SES or Blobs directly:
+
+```js
+const { createSignupService } = require('./signup-service');
+const svc = createSignupService({ store, provider, logger, env, now });
+
+await svc.storeSignup(email, source);      // idempotent durable upsert
+await svc.sendConfirmation(email);         // send the install email
+```
+
+| Member | Purpose |
+| --- | --- |
+| `ready` | true when the provider can send (`provider.ready`) |
+| `normalizeEmail(v)` / `normalizeSource(v)` | trim/lowercase; reject structural garbage |
+| `hash(v)` / `emailHash(email)` / `signupKey(email)` | salted HMAC meant for keys and logs (never the raw address) |
+| `getSignup(email)` | read the durable marker, or `null` |
+| `storeSignup(email, source)` | idempotent upsert into the audience **and** the keyed marker; returns `{ emailHash, duplicate, stored, audience, contactId, createdAt, confirmationSentAt }` |
+| `sendConfirmation(email)` | send the confirmation; returns `{ id }` |
+| `markConfirmationSent(email, meta)` | record the send time / delivery id |
+
+Failures are typed (`netlify/lib/signup-errors.js`): `ProviderError` (audience
+or send), `StoreError` (durable store read/write), `ConfigError` (bad input or
+an unconfigured provider). The handler maps every one to a generic
+`500 {"status":"error"}`; no code, message, or provider name reaches the client.
+The module never logs or returns the raw address.
 
 ### Duplicate handling (idempotent)
 
@@ -162,6 +194,11 @@ containing `/` or `..` can never be re-interpreted as path structure.
    - `AWS_SESSION_TOKEN` — only for temporary credentials
    - optional tuning: `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_SECONDS`,
      `SIGNUP_RESEND_COOLDOWN_SECONDS`, `SIGNUP_BLOBS_STORE`
+   - optional email copy (no code edit needed):
+     `EXTENSION_DOWNLOAD_URL` (the Chrome Web Store listing),
+     `SIGNUP_EMAIL_SUBJECT` (subject line),
+     `SIGNUP_INSTALL_STEPS` (newline-separated steps that replace the default
+     five; the literal `{url}` interpolates `EXTENSION_DOWNLOAD_URL`)
    - `AWS_ENDPOINT_URL_SES` — only to point at a non-AWS endpoint (tests/stubs)
 6. **Redeploy** so the function picks up the variables.
 
@@ -180,7 +217,7 @@ Local contract tests — no network, no AWS, no Netlify:
 
 ```bash
 npm install   # once, to get the @smithy oracle used by the signature tests
-npm test      # 24 tests
+npm test      # 35 tests
 ```
 
 The suite starts real local HTTP servers that stand in for SES, so the handler,
