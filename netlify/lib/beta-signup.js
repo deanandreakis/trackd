@@ -5,7 +5,7 @@
 // This module is transport-agnostic: it takes a Netlify-style event
 // ({ httpMethod, headers, body, isBase64Encoded }) and returns a Netlify-style
 // response ({ statusCode, headers, body }). Storage and email sending are
-// injected, so the contract can be tested without Netlify or Resend.
+// injected, so the contract can be tested without Netlify or AWS.
 //
 // Frozen API contract (frontend built against this in parallel):
 //   POST /api/beta-signup

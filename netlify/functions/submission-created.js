@@ -6,21 +6,27 @@
 // Netlify Forms notification still configured on the site.
 //
 // It sends the same confirmation email as the API endpoint, using the shared
-// copy in netlify/lib/confirmation-email.js so the install instructions cannot
-// drift.
+// copy in netlify/lib/confirmation-email.js and the shared SES transport in
+// netlify/lib/ses-provider.js, so neither the install instructions nor the
+// provider configuration can drift between the two entry points.
 //
-// Email transport: Resend (https://resend.com) via HTTPS. No SDK is used so the
-// function needs no dependencies. Configure these Netlify environment variables:
+// Email transport: AWS SES v2, SigV4-signed with netlify/lib/aws-sigv4.js. No
+// AWS SDK, so the function needs no extra dependencies. Configure the same
+// Netlify environment variables as the JSON API:
 //
-//   RESEND_API_KEY     required — a Resend API key (re_...). Without it the
-//                      function logs and returns 200 (the submission is still
-//                      stored by Netlify Forms).
-//   SIGNUP_FROM_EMAIL  optional — a verified sender on your Resend domain.
-//                      Defaults to "Trackd <onboarding@resend.dev>", which only
-//                      delivers to the account owner's own address. Set this to
-//                      e.g. "Trackd <hello@deanware.com>" once the domain is
-//                      verified in Resend.
-//   SIGNUP_REPLY_TO    optional — reply-to address. Defaults to trackd@deanware.com.
+//   AWS_ACCESS_KEY_ID      IAM access key id
+//   AWS_SECRET_ACCESS_KEY  IAM secret access key
+//   AWS_REGION             SES region, e.g. us-east-1
+//   SIGNUP_FROM_EMAIL      SES-verified sender, e.g. "Trackd <hello@deanware.com>".
+//                          Without the credentials or the sender this function
+//                          logs and returns 200 (the submission is still stored
+//                          by Netlify Forms).
+//   SIGNUP_REPLY_TO        optional — reply-to address. Defaults to trackd@deanware.com.
+//   AWS_SESSION_TOKEN      optional — only for temporary credentials
+//   AWS_ENDPOINT_URL_SES   optional endpoint override (tests/stubs)
+//
+// This path does not write to the SES contact list; the legacy Netlify Forms
+// store already holds the address. Only the JSON API adds contacts.
 //
 // Idempotency: Netlify can retry an event, which would send a duplicate email.
 // For a low-volume beta this is acceptable; the JSON API path has its own
@@ -30,7 +36,7 @@
 // HMAC prefix so a failed send can be correlated without storing PII.
 
 const crypto = require('node:crypto');
-const { buildConfirmation } = require('../lib/confirmation-email');
+const { createSesProvider } = require('../lib/ses-provider');
 
 const FORM_NAME = 'trackd-test-group';
 
@@ -60,12 +66,14 @@ exports.handler = async (event) => {
   }
 
   const emailHash = digest(email).slice(0, 12);
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    // The address is already stored by Netlify Forms. Without an email key we
-    // cannot send the confirmation, so log loudly and succeed.
+  const provider = createSesProvider();
+  if (!provider.ready) {
+    // The address is already stored by Netlify Forms. Without SES credentials
+    // and a verified sender we cannot send the confirmation, so log loudly and
+    // succeed.
     console.error(
-      'submission-created: RESEND_API_KEY is not set; stored submission ' +
+      'submission-created: SES is not configured (AWS_ACCESS_KEY_ID / ' +
+        'AWS_SECRET_ACCESS_KEY / SIGNUP_FROM_EMAIL); stored submission ' +
         payload.id +
         ' but did NOT send the confirmation email (emailHash ' +
         emailHash +
@@ -74,32 +82,12 @@ exports.handler = async (event) => {
     return { statusCode: 200, body: 'stored, email skipped' };
   }
 
-  const from =
-    process.env.SIGNUP_FROM_EMAIL || 'Trackd <onboarding@resend.dev>';
-  const replyTo = process.env.SIGNUP_REPLY_TO || 'trackd@deanware.com';
-  const message = buildConfirmation();
-
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: 'Bearer ' + apiKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: from,
-      to: [email],
-      reply_to: replyTo,
-      subject: message.subject,
-      text: message.text,
-      html: message.html,
-      headers: message.headers,
-    }),
-  });
-
-  if (!res.ok) {
+  try {
+    await provider.sendConfirmation(email);
+  } catch (err) {
     console.error(
-      'submission-created: Resend send failed (' +
-        res.status +
+      'submission-created: SES send failed (' +
+        (err && err.code ? err.code : 'error') +
         ') for emailHash ' +
         emailHash
     );

@@ -9,3 +9,7 @@ trackd-extension-test-keyed.zip
 
 # Local zip backups
 trackd-extension.zip.bak-*
+
+# Local build/scratch output
+.netlify-build*/
+.scratch/

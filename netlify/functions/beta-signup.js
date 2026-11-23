@@ -13,30 +13,37 @@
 //           500 { "status": "error", "message": string }   (provider/storage)
 //
 // Storage (the list):
-//   - Primary: Resend Audience identified by RESEND_AUDIENCE_ID. View/export in
-//     the Resend dashboard (Audiences → the configured audience → Contacts).
+//   - Primary: an AWS SES contact list identified by SES_CONTACT_LIST. View or
+//     export it in the AWS SES console (Configuration → Contact lists → the
+//     list), via the AWS CLI (aws sesv2 list-contacts --contact-list-name ...)
+//     or with scripts/export-beta-signups.mjs.
 //   - Operational: Netlify Blobs store "beta-signups" (override with
 //     SIGNUP_BLOBS_STORE). Holds only keyed records — rate-limit slots and a
 //     hashed-email signup marker — so duplicate sends are suppressed without
-//     keeping a second copy of the address. If RESEND_AUDIENCE_ID is not set,
-//     the record also carries the address so the signup is still durable.
+//     keeping a second copy of the address. If SES_CONTACT_LIST is not set, the
+//     record also carries the address so the signup is still durable.
 //
-// Email: Resend HTTP API (https://api.resend.com/emails), no SDK.
+// Email: AWS SES v2 REST API (https://email.<region>.amazonaws.com), signed with
+//        SigV4 in netlify/lib/aws-sigv4.js. No AWS SDK.
 //
 // Required Netlify environment variables:
-//   RESEND_API_KEY       re_... key
-//   RESEND_AUDIENCE_ID   audience that holds the beta list
-//   SIGNUP_FROM_EMAIL    verified sender, e.g. "Trackd <hello@deanware.com>"
-//   SIGNUP_REPLY_TO      optional, defaults to trackd@deanware.com
-//   SIGNUP_HASH_SALT     optional but recommended: secret used to HMAC emails/IPs
-//                        before they become store keys or log values. Set once;
-//                        changing it resets duplicate detection.
+//   AWS_ACCESS_KEY_ID      IAM access key id
+//   AWS_SECRET_ACCESS_KEY  IAM secret access key
+//   AWS_REGION             SES region, e.g. us-east-1
+//   SIGNUP_FROM_EMAIL      SES-verified sender, e.g. "Trackd <hello@deanware.com>"
+//   SES_CONTACT_LIST       contact list that holds the beta list (recommended)
+//   SIGNUP_REPLY_TO        optional, defaults to trackd@deanware.com
+//   AWS_SESSION_TOKEN      optional, only for temporary credentials
+//   AWS_ENDPOINT_URL_SES   optional endpoint override (tests/stubs)
+//   SIGNUP_HASH_SALT       optional but recommended: secret used to HMAC emails/IPs
+//                          before they become store keys or log values. Set once;
+//                          changing it resets duplicate detection.
 //
 // The raw email address is never logged by this endpoint.
 
 const { connectLambda, getStore } = require('@netlify/blobs');
 const { createHandler } = require('../lib/beta-signup');
-const { createResendProvider } = require('../lib/resend-provider');
+const { createSesProvider } = require('../lib/ses-provider');
 
 let cachedStore = null;
 
@@ -73,7 +80,7 @@ const store = {
 
 const coreHandler = createHandler({
   store,
-  provider: createResendProvider(),
+  provider: createSesProvider(),
 });
 
 // Classic Netlify Functions run in Lambda compatibility mode, where the Blobs

@@ -3,25 +3,27 @@
 How the email capture on the Trackd landing page (`trackd.deanware.com`) works,
 where the list lives, and what has to be switched on.
 
+**At a glance**
+
+| | |
+| --- | --- |
+| Endpoint | `POST https://trackd.deanware.com/api/beta-signup` |
+| Email service | **AWS SES** (SES v2 REST API, SigV4-signed in-repo, no AWS SDK) |
+| Where the list lives | **AWS SES contact list** named by `SES_CONTACT_LIST` (e.g. `trackd-beta`); Netlify Blobs store `beta-signups` is the operational/fallback store |
+| Code | `netlify/functions/beta-signup.js` (adapter) + `netlify/lib/*` (core, SES transport, SigV4 signer) |
+| Tests | `npm test` — 24 tests, including a local SES stub with every on-the-wire signature re-checked against the official AWS signer |
+
 ## Endpoint (frozen contract)
 
 ```
 POST /api/beta-signup
 Content-Type: application/json
 
-request   { "email": string, "honeypot": string, "source": string,
-            "beta_consent": boolean, "marketing_consent": boolean }
+request   { "email": string, "honeypot": string, "source": string }
 success   200 { "status": "ok" }
 error     400 { "status": "error", "message": string }   // validation, spam, throttle
 error     500 { "status": "error", "message": string }   // provider/storage outage
 ```
-
-The two consent booleans are the consent evidence the privacy policy relies on
-(§9): `beta_consent` is required client-side and `marketing_consent` is an optional
-separate opt-in. Both are sent as booleans (`true`/`false`), never `"on"`/strings,
-so the server can tell an unticked marketing box apart from a missing one. The
-legacy Netlify Forms fallback still posts them as `beta_consent=on` /
-`marketing_consent=on`.
 
 - **Public URL:** `https://trackd.deanware.com/api/beta-signup`
 - **Implementation:** `netlify/functions/beta-signup.js`
@@ -32,9 +34,15 @@ legacy Netlify Forms fallback still posts them as `beta_consent=on` /
   same site, so no preflight is needed. A cross-origin caller gets no
   `Access-Control-Allow-Origin` and the browser blocks the response.
 
-The handler is split into a transport-free core
-(`netlify/lib/beta-signup.js`) and a thin Netlify adapter. The core is covered by
-`tests/beta-signup.test.js`; run `npm test`.
+The handler is split into a transport-free core (`netlify/lib/beta-signup.js`), a
+provider-agnostic storage/email contract, and a thin Netlify adapter. Everything
+is covered by `tests/beta-signup.test.js`; run `npm test`.
+
+> **Not yet implemented — consent evidence.** The live form also sends
+> `beta_consent` / `marketing_consent`, but this endpoint does not read or store
+> them yet; they are ignored. Persisting them (and gating any promotional send on
+> them) is card **t_30b0eae6**. Until that lands, the request body above is the
+> full contract the server acts on.
 
 ## Flow
 
@@ -42,8 +50,8 @@ The handler is split into a transport-free core
 2. The inline script validates the address and the required consent tick, then
    POSTs JSON to `/api/beta-signup`.
 3. The function validates the address, checks the honeypot, applies the per-IP
-   throttle, adds the address to the Resend Audience (the list), and sends the
-   confirmation email through Resend.
+   throttle, adds the address to the SES contact list (the list), and sends the
+   confirmation email through SES.
 4. The page shows `Check your inbox for install instructions.` on success, or an
    inline error on failure. The form stays usable for a retry.
 
@@ -51,26 +59,33 @@ The handler is split into a transport-free core
 
 | Concern | Where |
 | --- | --- |
-| **The list (authoritative)** | **Resend Audience** identified by `RESEND_AUDIENCE_ID`. Resend dashboard → **Audiences → [audience] → Contacts**. Exportable via the Resend API or `scripts/export-beta-signups.mjs`. |
-| **Operational store** | **Netlify Blobs**, store name `beta-signups` (override with `SIGNUP_BLOBS_STORE`). Holds rate-limit slot keys and a signup marker keyed by an HMAC of the address. It does **not** hold a second copy of the address when an audience is configured. |
-| **Fallback store** | If `RESEND_AUDIENCE_ID` is not set, the Blobs record also stores the raw address so the signup is still durable. This is a fallback, not the intended production setup — without an audience there is no Resend UI/CSV list. |
-| **Confirmation email** | Resend HTTP API, `POST https://api.resend.com/emails`, sent synchronously in the request path. |
+| **The list (authoritative)** | **AWS SES contact list** named by `SES_CONTACT_LIST`. SES console → **Configuration → Contact lists → [list]**. Also via `aws sesv2 list-contacts --contact-list-name trackd-beta` or `scripts/export-beta-signups.mjs`. |
+| **Operational store** | **Netlify Blobs**, store name `beta-signups` (override with `SIGNUP_BLOBS_STORE`). Holds rate-limit slot keys and a signup marker keyed by an HMAC of the address. It does **not** hold a second copy of the address when `SES_CONTACT_LIST` is set. |
+| **Fallback store** | If `SES_CONTACT_LIST` is not set, the Blobs record also stores the raw address so the signup is still durable. This is a fallback, not the intended production setup — without a contact list there is no SES UI/CSV list. |
+| **Confirmation email** | AWS SES v2, `POST https://email.<region>.amazonaws.com/v2/email/outbound-emails`, sent synchronously in the request path. |
 
-The address is stored in the audience **before** the email is sent. If the send
-fails the request returns 500; the address remains in the audience, and a retry
+The address is written to the contact list **before** the email is sent. If the
+send fails the request returns 500; the address remains in the list, and a retry
 finds it already present (no duplicate row) and retries the send.
+
+### Why SES and not a list-first provider
+
+The endpoint needs exactly two things from an email provider: send one
+transactional message, and hold an address list. AWS SES does both, and the AWS
+account was already available — no new vendor, no new DPA, no new bill. The
+transport is behind `netlify/lib/ses-provider.js`'s three-method interface
+(`ready`, `addContact`, `sendConfirmation`), so swapping providers later means
+writing one file and changing one `require` in the Netlify adapter.
 
 ### Duplicate handling (idempotent)
 
-- The audience is keyed by address. A repeat signup is "already present", not a
-  second row.
+- The contact list is keyed by address. A repeat signup returns SES's
+  `AlreadyExistsException`, which is treated as success — not a second row.
 - A signup marker keyed by the address HMAC records when the confirmation was
   sent. A repeat within `SIGNUP_RESEND_COOLDOWN_SECONDS` (default 24 h) returns
   `200 {"status":"ok"}` without sending another email or storing anything twice.
 - After the cooldown, a repeat sends the confirmation again (allowed by the
-  contract) but still does not duplicate the audience row.
-- Resend duplicate responses (`409`, or a message containing "already exists")
-  are treated as success.
+  contract) but still does not duplicate the contact.
 
 ## Spam protection
 
@@ -96,37 +111,81 @@ finds it already present (no duplicate row) and retries the send.
   `SIGNUP_HASH_SALT` to a stable secret so the hashes are not guessable from the
   public source. Changing the salt changes the keys and resets duplicate
   suppression; set it once.
-- The audience is the only place the raw address is persisted in production.
+- The SES contact list is the only place the raw address is persisted in
+  production.
 
-## Required setup (Netlify + Resend)
+## AWS SigV4 without the AWS SDK
 
-1. Create a Resend account and verify `deanware.com` as a sending domain (adds
-   SPF/DKIM DNS records).
-2. Create an API key (`re_…`).
-3. Create an **Audience** in Resend (e.g. "Trackd beta"). Copy its id.
-4. In Netlify: **Site configuration → Environment variables** add:
-   - `RESEND_API_KEY` = the key (required)
-   - `RESEND_AUDIENCE_ID` = the audience id (required for the list)
-   - `SIGNUP_FROM_EMAIL` = `Trackd <hello@deanware.com>` (a verified sender;
-     defaults to the sandbox `onboarding@resend.dev`, which only delivers to the
-     account owner's own address)
-   - `SIGNUP_REPLY_TO` = `trackd@deanware.com` (optional; this is the default)
-   - `SIGNUP_HASH_SALT` = a long random string (recommended; set once)
+`netlify/lib/aws-sigv4.js` signs SES requests with `node:crypto` only. It exists
+because the whole AWS SDK would add roughly a megabyte to a function that makes
+two API calls.
+
+This is not "trust me" cryptography: `npm test` cross-checks every signature the
+module produces against the **official AWS signer** (`@smithy/signature-v4`, a
+devDependency) and asserts byte-identical `Authorization` headers across normal
+requests, `+`/`@` in the path, encoded query strings, path-normalisation edge
+cases and temporary-credential requests. The end-to-end test additionally
+re-signs the requests that actually arrive at a local SES stub, so what is
+verified is the bytes on the wire, not a self-consistent reimplementation. If the
+oracle package is missing the affected tests report a skip and say so.
+
+Path segments are encoded independently (`pathSegments`), so an address
+containing `/` or `..` can never be re-interpreted as path structure.
+
+## Required setup (AWS SES + Netlify)
+
+1. **Verify a sending identity in SES** for `deanware.com` (Easy DKIM: SES gives
+   you CNAME records to add to DNS). Until the domain is verified you can only
+   send from a verified single address.
+2. **Leave the SES sandbox.** A new SES account is sandboxed: it can only send
+   *to* addresses you have verified, and has a low daily quota. Request
+   production access (SES console → Account dashboard → Request production
+   access) before opening the signup to the public, or confirmations to real
+   visitors will be rejected.
+3. **Create a contact list** in SES (e.g. `trackd-beta`). This is the list.
+4. **Create an IAM user** with a programmatic access key, and the minimum
+   permissions:
+   - `ses:SendEmail` on the sending identity
+   - `ses:CreateContact` on the contact list (only needed when
+     `SES_CONTACT_LIST` is set)
+
+   Nothing else. Do not use root credentials. Prefer an IAM policy scoped by
+   resource ARN over a wildcard.
+5. **In Netlify:** *Site configuration → Environment variables* add:
+   - `AWS_ACCESS_KEY_ID` — the IAM access key id (required)
+   - `AWS_SECRET_ACCESS_KEY` — the IAM secret access key (required)
+   - `AWS_REGION` — the SES region, e.g. `us-east-1` (required)
+   - `SIGNUP_FROM_EMAIL` — the verified sender, e.g. `Trackd <hello@deanware.com>` (required)
+   - `SES_CONTACT_LIST` — e.g. `trackd-beta` (required for the list)
+   - `SIGNUP_REPLY_TO` — optional; defaults to `trackd@deanware.com`
+   - `SIGNUP_HASH_SALT` — a long random string (recommended; set once)
+   - `AWS_SESSION_TOKEN` — only for temporary credentials
    - optional tuning: `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_SECONDS`,
      `SIGNUP_RESEND_COOLDOWN_SECONDS`, `SIGNUP_BLOBS_STORE`
-5. Redeploy so the function and the new route pick up the variables.
+   - `AWS_ENDPOINT_URL_SES` — only to point at a non-AWS endpoint (tests/stubs)
+6. **Redeploy** so the function picks up the variables.
 
-Without `RESEND_API_KEY` the endpoint cannot send, so it returns a generic `500`
-and does not store the address. That is deliberate: the contract's success means
-"stored and email sent".
+Without the credentials or `SIGNUP_FROM_EMAIL` the endpoint cannot send, so it
+returns a generic `500` and does not store the address. That is deliberate: the
+contract's success means "stored and email sent".
+
+> **Compliance follow-up.** `privacy-policy.html` §6/§7/§9 and
+> `docs/beta-email-consent-runbook.md` still name **Resend** as the email
+> processor. They must be updated to Amazon SES (AWS) before this endpoint is
+> switched on in production. Routed as a separate compliance card.
 
 ## Verifying
 
-Local contract tests (no network, no Netlify):
+Local contract tests — no network, no AWS, no Netlify:
 
 ```bash
-npm test
+npm install   # once, to get the @smithy oracle used by the signature tests
+npm test      # 24 tests
 ```
+
+The suite starts real local HTTP servers that stand in for SES, so the handler,
+the SES provider, the SigV4 signer and the CSV export are all exercised over
+actual sockets.
 
 Against the deployed site:
 
@@ -147,18 +206,20 @@ curl -sS -i -X POST https://trackd.deanware.com/api/beta-signup \
   --data '{"email":"not-an-email","honeypot":"","source":"curl-test"}'
 ```
 
-Then confirm the address appears in Resend → Audiences → the configured audience
-→ Contacts, and that the confirmation email arrived with the Chrome Web Store
-link and the numbered install steps.
+Then confirm the address appears in the SES contact list and that the
+confirmation email arrived with the Chrome Web Store link and the numbered
+install steps.
 
 ## Exporting the list
 
 ```bash
-RESEND_API_KEY=re_... RESEND_AUDIENCE_ID=... node scripts/export-beta-signups.mjs > beta-signups.csv
+AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... AWS_REGION=us-east-1 \
+  SES_CONTACT_LIST=trackd-beta node scripts/export-beta-signups.mjs > beta-signups.csv
 ```
 
-The script pages through `GET /audiences/{id}/contacts` and writes
-`email,created_at,unsubscribed`.
+The script pages through `GET /v2/email/contact-lists/{list}/contacts` using the
+same in-repo SigV4 signer, and writes `email,created_at,unsubscribe_all`. It
+needs `ses:ListContacts` in addition to the endpoint's permissions.
 
 ## Legacy Netlify Forms path
 
@@ -166,12 +227,19 @@ The script pages through `GET /audiences/{id}/contacts` and writes
 submission path (`form-name=trackd-test-group`). The current landing page no
 longer posts to Netlify Forms, so this function is dormant unless a form
 submission is created another way. It sends the same confirmation copy from
-`netlify/lib/confirmation-email.js`.
+`netlify/lib/confirmation-email.js` through the same SES provider. It does not
+add contacts to the list — the Netlify Forms store already holds the address.
 
 ## Unsubscribe / deletion
 
 The confirmation email tells the recipient to reply with "unsubscribe" and
 includes a `List-Unsubscribe` mailto header. To delete an address, remove the
-contact from the Resend Audience (dashboard or API) and delete the signup marker
-from the `beta-signups` Blobs store if present. For the marketing list, remove the
-address from any future send.
+contact from the SES contact list:
+
+```bash
+aws sesv2 delete-contact --contact-list-name trackd-beta --email-address user@example.com
+```
+
+and delete the signup marker from the `beta-signups` Blobs store if present. For
+the marketing list, remove the address from any future send. The full procedure
+is in `docs/signup-list-data-deletion-procedure.md`.
