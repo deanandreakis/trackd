@@ -3,6 +3,11 @@
 How the email capture on the Trackd landing page (`trackd.deanware.com`) works,
 where the list lives, and what has to be switched on.
 
+> **Operator runbook:** `docs/beta-signup-operations.md` is the day-to-day guide
+> (request/response contract, config keys, list inspection, confirmation email
+> contents, rate-limit and duplicate behavior). This document covers the design
+> and rationale behind those choices.
+
 **At a glance**
 
 | | |
