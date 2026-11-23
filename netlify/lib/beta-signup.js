@@ -84,15 +84,28 @@ function readBody(event) {
   return typeof body === 'string' ? body : '';
 }
 
-function defaultClientIp(event) {
-  // Netlify sets this header at the edge and overwrites any client-supplied
-  // value. x-forwarded-for is only a fallback for local/dev runs.
+function defaultClientIp(event, env) {
+  // Netlify sets x-nf-client-connection-ip at the edge and overwrites any
+  // client-supplied value, so it is the only header we can trust by default.
+  // Netlify does NOT set X-Forwarded-For: whatever arrives there is client
+  // input, and trusting it would let an attacker mint a fresh rate-limit
+  // bucket per request. XFF is honoured only when the operator explicitly
+  // declares that a trusted proxy in front of this function sets it.
   const edge = header(event, 'x-nf-client-connection-ip');
   if (typeof edge === 'string' && edge.trim()) return edge.trim();
-  const forwarded = header(event, 'x-forwarded-for');
-  if (typeof forwarded === 'string' && forwarded.trim()) {
-    return forwarded.split(',')[0].trim();
+
+  const trustForwarded =
+    env &&
+    (env.TRUST_FORWARDED_FOR === '1' ||
+      String(env.TRUST_FORWARDED_FOR).toLowerCase() === 'true');
+  if (trustForwarded) {
+    const forwarded = header(event, 'x-forwarded-for');
+    if (typeof forwarded === 'string' && forwarded.trim()) {
+      return forwarded.split(',')[0].trim();
+    }
   }
+  // No trustworthy source available: fall back to a single shared bucket, so a
+  // spoofed header gains the caller nothing.
   return 'unknown';
 }
 
@@ -200,7 +213,7 @@ function createHandler(options) {
     const source = normalizeSource(payload.source);
     const emailHash = service.emailHash(email);
 
-    const ip = getClientIp(event) || 'unknown';
+    const ip = getClientIp(event, env) || 'unknown';
     const ipHash = service.hash(ip);
 
     if (!(await claimRateSlot(ipHash))) {
@@ -246,6 +259,14 @@ function createHandler(options) {
       return json(500, { status: 'error', message: MESSAGES.unavailable });
     }
 
+    // Atomic per-address send claim. The cooldown check above is a read, so
+    // concurrent requests for the same address all observe "not sent yet" and
+    // would all send. The claim makes exactly one of them the sender; the rest
+    // return the same idempotent 200 without sending.
+    if (!(await service.claimConfirmation(email, config.resendCooldownMs))) {
+      return json(200, { status: 'ok' });
+    }
+
     let delivery;
     try {
       delivery = await service.sendConfirmation(email);
@@ -254,6 +275,8 @@ function createHandler(options) {
         emailHash: emailHash.slice(0, 12),
         code: err && err.code ? err.code : 'provider_error',
       });
+      // Release the claim so a genuine retry can send inside the window.
+      await service.releaseConfirmation(email, config.resendCooldownMs);
       return json(500, { status: 'error', message: MESSAGES.unavailable });
     }
 

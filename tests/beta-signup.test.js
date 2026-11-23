@@ -228,6 +228,72 @@ test('filled honeypot returns 400 and stores nothing', async () => {
   assert.equal(provider.sends.length, 0);
 });
 
+test('concurrent duplicate signups send exactly one confirmation', async () => {
+  const { handler, provider } = setup();
+  const body = { email: 'race@example.com', honeypot: '', source: 'hero' };
+  const results = await Promise.all(
+    Array.from({ length: 10 }, () => call(handler, body))
+  );
+  assert.ok(results.some((r) => r.response.statusCode === 200));
+  assert.equal(provider.contacts.size, 1);
+  assert.equal(provider.sends.length, 1, 'the send claim must serialise duplicates');
+});
+
+test('a client-supplied X-Forwarded-For cannot mint a fresh rate-limit bucket', async () => {
+  const { handler } = setup();
+  const spoof = (i) => ({
+    httpMethod: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      // No x-nf-client-connection-ip (edge header absent); only a spoofed XFF.
+      'x-forwarded-for': '10.0.0.' + i,
+    },
+    body: JSON.stringify({ email: 'spoof' + i + '@example.com', honeypot: '', source: 'x' }),
+  });
+  const codes = [];
+  for (let i = 0; i < 6; i += 1) {
+    codes.push((await handler(spoof(i))).statusCode);
+  }
+  // RATE_LIMIT_MAX is 3 in ENV: the 4th+ must be blocked despite the new XFF.
+  assert.deepEqual(codes, [200, 200, 200, 400, 400, 400]);
+});
+
+test('X-Forwarded-For is honoured only when TRUST_FORWARDED_FOR is set', async () => {
+  const store = memoryStore();
+  const provider = fakeProvider();
+  const handler = createHandler({
+    store,
+    provider,
+    logger: { log() {}, error() {} },
+    env: Object.assign({}, ENV, { TRUST_FORWARDED_FOR: '1' }),
+    now: () => 1_700_000_000_000,
+  });
+  const codes = [];
+  for (let i = 0; i < 6; i += 1) {
+    const r = await handler({
+      httpMethod: 'POST',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.' + i },
+      body: JSON.stringify({ email: 'trust' + i + '@example.com', honeypot: '', source: 'x' }),
+    });
+    codes.push(r.statusCode);
+  }
+  assert.ok(codes.every((c) => c === 200), 'each forwarded IP gets its own bucket');
+});
+
+test('control characters in source are stripped before logging or storage', async () => {
+  const { handler, logs, store } = setup();
+  await call(handler, {
+    email: 'inject@example.com',
+    honeypot: '',
+    source: 'hero\nERROR beta-signup: forged line',
+  });
+  const serialized = JSON.stringify(logs);
+  assert.doesNotMatch(serialized, /\\nERROR/);
+  assert.doesNotMatch(serialized, /forged line\\n/);
+  const key = [...store.map.keys()].find((k) => k.startsWith('signup:'));
+  assert.doesNotMatch(store.map.get(key).source, /[\r\n]/);
+});
+
 test('duplicate within the cooldown is idempotent: one row, one email', async () => {
   const { handler, provider } = setup();
   await call(handler, { email: 'dup@example.com', honeypot: '', source: 'hero' });

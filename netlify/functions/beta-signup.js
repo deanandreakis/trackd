@@ -38,6 +38,10 @@
 //   SIGNUP_HASH_SALT       optional but recommended: secret used to HMAC emails/IPs
 //                          before they become store keys or log values. Set once;
 //                          changing it resets duplicate detection.
+//   TRUST_FORWARDED_FOR    optional: set to "1"/"true" ONLY when a trusted proxy
+//                          in front of this function sets X-Forwarded-For. The
+//                          client IP otherwise comes solely from Netlify's
+//                          edge-set x-nf-client-connection-ip header.
 //
 // The raw email address is never logged by this endpoint.
 
@@ -93,5 +97,27 @@ exports.handler = async (event, context) => {
   } catch (err) {
     // Already configured, or not running in Lambda compatibility mode.
   }
-  return coreHandler(event, context);
+  try {
+    return await coreHandler(event, context);
+  } catch (err) {
+    // The core handler maps every expected failure to a typed response; this
+    // catch is the last line of defence so an unforeseen throw cannot reach the
+    // client as a platform error page carrying a stack trace or a path.
+    // eslint-disable-next-line no-console
+    console.error('beta-signup: unhandled handler error', {
+      name: err && err.name ? err.name : 'Error',
+    });
+    return {
+      statusCode: 500,
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+      },
+      body: JSON.stringify({
+        status: 'error',
+        message: "We couldn't save your email just now. Please try again in a minute.",
+      }),
+    };
+  }
 };

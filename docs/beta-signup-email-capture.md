@@ -121,6 +121,12 @@ The module never logs or returns the raw address.
 - A signup marker keyed by the address HMAC records when the confirmation was
   sent. A repeat within `SIGNUP_RESEND_COOLDOWN_SECONDS` (default 24 h) returns
   `200 {"status":"ok"}` without sending another email or storing anything twice.
+- **Atomic send claim.** The cooldown check alone is a read, so concurrent
+  requests for the same address would all see "not sent yet" and all send. Before
+  sending, the handler takes a per-address claim (`send:<HMAC>:<window>`) with
+  Blobs' `onlyIfNew` conditional write; exactly one concurrent request wins and
+  the rest return the idempotent `200` without sending. A failed send releases
+  the claim so a genuine retry can still go out inside the window.
 - After the cooldown, a repeat sends the confirmation again (allowed by the
   contract) but still does not duplicate the contact.
 
@@ -136,14 +142,22 @@ The module never logs or returns the raw address.
   request atomically creates one of N slot keys with `onlyIfNew`, so concurrent
   requests cannot all pass on the same slot. Exceeding the limit returns `400`
   (the contract only defines 200/400) with a "try again" message.
+  - `X-Forwarded-For` is **not** trusted by default: Netlify does not set it, so
+    a client can supply it freely and would otherwise mint a fresh bucket per
+    request. Set `TRUST_FORWARDED_FOR=1` only when a trusted proxy in front of
+    the function sets it. With no trustworthy header the caller shares a single
+    `unknown` bucket, so spoofing gains nothing.
 - If the Blobs store is unavailable the throttle fails open: the signup still
   works and the outage is logged. Availability is preferred over a best-effort
-  throttle during a storage outage.
+  throttle during a storage outage (a store outage is not attacker-triggerable).
 
 ## Privacy
 
 - The raw email address is **never logged**. Log lines carry a short HMAC-SHA256
   prefix (`emailHash`) so a failed send can be correlated without PII.
+- The attacker-controlled `source` field is stripped of control characters
+  (CR/LF/tab/NUL and C0/C1) before it is stored or logged, so it cannot forge
+  extra lines in a log stream.
 - Store keys for signups and rate-limit slots are HMACs too. Set
   `SIGNUP_HASH_SALT` to a stable secret so the hashes are not guessable from the
   public source. Changing the salt changes the keys and resets duplicate

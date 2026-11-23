@@ -19,6 +19,8 @@
 //   storeSignup(email, source)         -> { emailHash, duplicate, stored,
 //                                           audience, createdAt, confirmationSentAt }
 //                                         idempotent; ProviderError / StoreError
+//   claimConfirmation(email, windowMs) -> true if this request may send now
+//   releaseConfirmation(email, windowMs) -> drop a claim after a failed send
 //   sendConfirmation(email)            -> { id }               (ProviderError)
 //   markConfirmationSent(email, meta)  -> updated marker       (StoreError)
 //
@@ -60,7 +62,14 @@ function normalizeEmail(value) {
 
 function normalizeSource(value) {
   if (typeof value !== 'string') return 'unknown';
-  const source = value.trim().slice(0, MAX_SOURCE_LENGTH);
+  // Strip control characters (CR/LF/tab/NUL and the C0/C1 ranges) before the
+  // value is stored or logged. `source` is attacker-controlled and reaches the
+  // log stream verbatim, so an unescaped newline lets a caller forge log lines.
+  const source = value
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ')
+    .trim()
+    .slice(0, MAX_SOURCE_LENGTH)
+    .trim();
   return source || 'unknown';
 }
 
@@ -217,6 +226,50 @@ function createSignupService(options) {
         createdAt: record.createdAt,
         confirmationSentAt: record.confirmationSentAt,
       };
+    },
+
+    // Atomically claim the right to send one confirmation for this address
+    // inside the current cooldown window. The cooldown check in the handler is
+    // a read, so two concurrent requests for the same address both observe
+    // "not sent yet" and both send. Blobs' onlyIfNew is a server-side
+    // conditional write: of N concurrent requests exactly one wins the claim
+    // and the rest skip the send. The key is bucketed by the cooldown window so
+    // a later window can send again without needing to overwrite the claim.
+    async claimConfirmation(email, windowMs) {
+      if (!(Number(windowMs) > 0)) return true; // cooldown disabled
+      const normalized = normalizeEmail(email) || email;
+      const hashValue = emailHash(normalized);
+      const key =
+        'send:' + hashValue + ':' + Math.floor(now() / Number(windowMs));
+      try {
+        const result = await store.set(key, { at: now() }, { onlyIfNew: true });
+        return Boolean(result && result.modified);
+      } catch (err) {
+        // Fail open: a store outage must not stop confirmations entirely.
+        logger.error('signup-service: send claim store unavailable', {
+          emailHash: shortHash(hashValue),
+          code: err && err.code ? err.code : 'store_error',
+        });
+        return true;
+      }
+    },
+
+    // Drop a claim so a genuine retry can send inside the same window (used
+    // when the provider rejects the send after the claim was taken).
+    async releaseConfirmation(email, windowMs) {
+      if (!(Number(windowMs) > 0)) return;
+      const normalized = normalizeEmail(email) || email;
+      const hashValue = emailHash(normalized);
+      const key =
+        'send:' + hashValue + ':' + Math.floor(now() / Number(windowMs));
+      try {
+        await store.delete(key);
+      } catch (err) {
+        logger.error('signup-service: send claim release failed', {
+          emailHash: shortHash(hashValue),
+          code: err && err.code ? err.code : 'store_error',
+        });
+      }
     },
 
     async sendConfirmation(email) {

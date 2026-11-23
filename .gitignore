@@ -6,9 +6,11 @@ package-lock.json
 # Never commit this (and never submit it to the Chrome Web Store).
 extension_test/
 trackd-extension-test-keyed.zip
+trackd-extension-test-keyed.zip.*
 
 # Local zip backups
 trackd-extension.zip.bak-*
+*.pre-rebuild.bak
 
 # Local build/scratch output
 .netlify-build*/
